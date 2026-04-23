@@ -14,6 +14,24 @@ https://shintarokurachi.github.io/beccs-3d-model/
 
 A WebGL-based 3D visualization of BECCS (Bioenergy with Carbon Capture and Storage), incorporating combined heat & power (CHP) and district heating. Built as a single HTML file with Three.js; no build step required.
 
+## ⚠️ 免責事項・利用上の注意 / Disclaimer
+
+**本モデルは教育・議論目的の概念図であり、工学的・科学的な厳密性を保証するものではありません。**
+
+- 本モデルはBECCSの各工程を直感的に理解するための**簡略化された概念モデル**である。実際のプラント設計、地層構造、アミン吸収プロセスの化学反応、熱効率、粒子挙動等は大幅に単純化・抽象化されており、現実の設備・プロセスとは**形状・比率・物理的挙動のいずれにおいても一致しない**。
+- 各種数値（層厚、圧入深度、流量、温度等）は一切表示しておらず、本モデルから定量的な推論を行うことはできない。
+- 本モデルはBECCSの推進・反対いずれの立場も表明しない。BECCSには土地利用、生物多様性、エネルギー収支、大規模展開可能性等をめぐる学術的批判も多数存在し、本モデルはそれらの論点を網羅するものではない。
+- 本モデルの利用は**利用者の自己責任**による。本モデルに基づく判断・決定・研究・報道等の結果について、著者は一切の責任を負わない。
+- 本モデルは MIT ライセンスの下で「現状のまま（AS IS）」提供される。
+
+**This is a simplified conceptual diagram for educational and discussion purposes only; it does not guarantee engineering or scientific accuracy.**
+
+- The model is a **simplified conceptual visualization** intended to aid intuitive understanding of BECCS stages. Actual plant designs, geological structures, amine absorption chemistry, thermal efficiencies, and particle behaviors are heavily simplified and abstracted. The model **does not match real-world facilities or processes** in shape, proportion, or physical behavior.
+- No quantitative data (layer thickness, injection depth, flow rates, temperatures, etc.) is shown; quantitative inferences cannot be drawn from this model.
+- The model takes no position on BECCS as a policy. There are substantial academic critiques of BECCS regarding land use, biodiversity, energy balance, and scalability; this model does not address these debates.
+- **Use at your own risk.** The author assumes no liability for any judgments, decisions, research, or reporting made on the basis of this model.
+- Provided under the MIT License **"AS IS"** without warranty of any kind.
+
 ## 工程 / Stages
 
 画面下のボタンで四工程を切り替えると、カメラがその地点にズームし、CO₂・バイオマス炭素・熱・電力の流れが段階に応じて切り替わる。
