@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>バイオマスCCS（BECCS）3Dモデル</title>
+<meta name="description" content="バイオマスCCS（BECCS: Bioenergy with Carbon Capture and Storage）の4工程をインタラクティブに表示する3Dモデル。">
+<meta property="og:title" content="バイオマスCCS（BECCS）3Dモデル">
+<meta property="og:description" content="大気CO₂の吸収から地中貯留までを一枚の3Dシーンで可視化する教材。">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+  :root{
+    --bg:#0b1416;
+    --ink:#e8ede8;
+    --muted:#9aa8a1;
+    --accent:#8fbf73;
+    --co2:#e06b5a;
+    --panel:rgba(11,20,22,0.82);
+    --line:rgba(143,191,115,0.35);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;width:100%;overflow:hidden;background:var(--bg);color:var(--ink);
+    font-family:"Hiragino Sans","Noto Sans JP","Yu Gothic","Helvetica Neue",sans-serif;
+    -webkit-font-smoothing:antialiased}
+  #canvas{position:fixed;inset:0;display:block}
+
+  #header{
+    position:fixed;top:0;left:0;right:0;padding:14px 16px;z-index:10;
+    background:linear-gradient(180deg,rgba(11,20,22,0.9),rgba(11,20,22,0));
+    pointer-events:none;
+  }
+  #header h1{
+    font-size:15px;font-weight:600;letter-spacing:0.04em;margin-bottom:2px;
+  }
+  #header .sub{
+    font-size:11px;color:var(--muted);letter-spacing:0.08em;
+  }
+
+  #panel{
+    position:fixed;left:12px;right:12px;bottom:12px;z-index:10;
+    background:var(--panel);backdrop-filter:blur(10px);
+    border:1px solid var(--line);border-radius:12px;padding:14px 14px 12px;
+  }
+  #panel .step-label{
+    font-size:10px;color:var(--accent);letter-spacing:0.15em;margin-bottom:6px;
+    text-transform:uppercase;font-weight:600;
+  }
+  #panel h2{
+    font-size:15px;font-weight:600;margin-bottom:6px;line-height:1.3;
+  }
+  #panel p{
+    font-size:12px;color:var(--muted);line-height:1.55;margin-bottom:10px;
+  }
+  #steps{
+    display:flex;gap:6px;
+  }
+  .step-btn{
+    flex:1;padding:8px 4px;font-size:10px;
+    background:transparent;color:var(--muted);
+    border:1px solid var(--line);border-radius:6px;
+    cursor:pointer;transition:all .2s;
+    font-family:inherit;letter-spacing:0.02em;
+  }
+  .step-btn.active{
+    background:var(--accent);color:#0b1416;border-color:var(--accent);
+    font-weight:600;
+  }
+  .step-btn:hover:not(.active){
+    border-color:var(--accent);color:var(--ink);
+  }
+
+  #legend{
+    position:fixed;top:60px;right:12px;z-index:10;
+    background:var(--panel);backdrop-filter:blur(10px);
+    border:1px solid var(--line);border-radius:10px;padding:10px 12px;
+    font-size:11px;
+  }
+  .legend-row{display:flex;align-items:center;gap:8px;margin:3px 0}
+  .dot{width:9px;height:9px;border-radius:50%}
+  .dot.co2{background:var(--co2)}
+  .dot.bio{background:var(--accent)}
+
+  #badge{
+    position:fixed;top:60px;left:12px;z-index:10;
+    background:rgba(224,107,90,0.12);
+    border:1px solid rgba(224,107,90,0.4);
+    border-radius:6px;padding:5px 9px;font-size:10px;
+    color:#f0a396;letter-spacing:0.1em;
+  }
+
+  .hidden{display:none !important}
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+
+<div id="header">
+  <h1>バイオマスCCS（BECCS）の仕組み</h1>
+  <div class="sub">BIO-ENERGY WITH CARBON CAPTURE AND STORAGE</div>
+</div>
+
+<div id="badge">NEGATIVE EMISSIONS ／ 負の排出</div>
+
+<div id="legend">
+  <div class="legend-row"><span class="dot bio"></span><span>バイオマス由来の炭素</span></div>
+  <div class="legend-row"><span class="dot co2"></span><span>CO<sub>2</sub>の流れ</span></div>
+  <div class="legend-row"><span class="dot" style="background:#a08070"></span><span>排ガス（未処理）</span></div>
+  <div class="legend-row"><span class="dot" style="background:#cad6dc"></span><span>オフガス（N<sub>2</sub>・O<sub>2</sub>）</span></div>
+  <div class="legend-row"><span class="dot" style="background:#ff9450"></span><span>熱（地域熱供給）</span></div>
+  <div class="legend-row"><span class="dot" style="background:#fff066"></span><span>電力</span></div>
+</div>
+
+<div id="panel">
+  <div class="step-label" id="step-label">STEP 1 / 4</div>
+  <h2 id="step-title">① 大気CO2の吸収</h2>
+  <p id="step-desc">樹木・エネルギー作物が光合成により大気中のCO2を吸収し、バイオマスとして炭素を固定する。</p>
+  <div id="steps">
+    <button class="step-btn active" data-step="1">① 吸収</button>
+    <button class="step-btn" data-step="2">② 燃焼</button>
+    <button class="step-btn" data-step="3">③ 回収</button>
+    <button class="step-btn" data-step="4">④ 貯留</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+// ========== Scene setup ==========
+const canvas = document.getElementById('canvas');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b1416);
+scene.fog = new THREE.Fog(0x0b1416, 30, 90);
+
+const camera = new THREE.PerspectiveCamera(
+  45, window.innerWidth/window.innerHeight, 0.1, 200
+);
+camera.position.set(0, 12, 32);
+
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 10;
+controls.maxDistance = 55;
+controls.maxPolarAngle = Math.PI * 0.48;
+controls.target.set(0, 3, 0);
+
+// ========== Lighting ==========
+const ambient = new THREE.AmbientLight(0xccd8d2, 0.55);
+scene.add(ambient);
+const sun = new THREE.DirectionalLight(0xfff1d6, 0.9);
+sun.position.set(-12, 18, 10);
+sun.castShadow = true;
+sun.shadow.mapSize.width = 1024;
+sun.shadow.mapSize.height = 1024;
+sun.shadow.camera.left = -25;
+sun.shadow.camera.right = 25;
+sun.shadow.camera.top = 20;
+sun.shadow.camera.bottom = -20;
+scene.add(sun);
+const fill = new THREE.DirectionalLight(0x8fbf73, 0.15);
+fill.position.set(10, 5, -10);
+scene.add(fill);
+
+// ========== Ground (left half only; right half exposes cross-section) ==========
+const groundGeo = new THREE.PlaneGeometry(44, 50);
+const groundMat = new THREE.MeshStandardMaterial({color:0x2a3a2a, roughness:0.95});
+const ground = new THREE.Mesh(groundGeo, groundMat);
+ground.rotation.x = -Math.PI/2;
+ground.position.set(-18, 0.01, 0);
+ground.receiveShadow = true;
+scene.add(ground);
+
+// Subtle cliff edge at the cross-section boundary
+const edgeGeo = new THREE.BoxGeometry(0.15, 0.15, 14);
+const edgeMat = new THREE.MeshStandardMaterial({color:0x0a0a0a});
+const edge = new THREE.Mesh(edgeGeo, edgeMat);
+edge.position.set(4, 0.08, 0);
+scene.add(edge);
+
+// Subsurface layers (exposed cross-section on the right side)
+// Layers are translucent so that the well, CO2 flows, and stored CO2 plume
+// inside the reservoir are visible through the rock.
+function addLayer(y, h, color, opacity=1) {
+  const geo = new THREE.BoxGeometry(20, h, 14);
+  const mat = new THREE.MeshStandardMaterial({
+    color, roughness:0.9,
+    transparent: opacity < 1,
+    opacity,
+    depthWrite: opacity > 0.95,
+    side: THREE.DoubleSide
+  });
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(14, y, 0);
+  scene.add(m);
+  return m;
+}
+addLayer(-0.5, 1.0, 0x3a2818, 0.88);  // soil
+addLayer(-1.5, 1.0, 0x6a5030, 0.82);  // rock
+addLayer(-2.5, 1.0, 0x3a3042, 0.90);  // caprock (seal) — distinct slate tone
+addLayer(-4.0, 2.0, 0x2d4a7e, 0.42);  // reservoir / saline aquifer — most translucent
+addLayer(-6.0, 2.0, 0x1a2530, 0.92);  // deep rock
+
+// Stored CO2 mass — glowing ellipsoid representing accumulated CO2 in the reservoir
+const co2Mass = new THREE.Mesh(
+  new THREE.SphereGeometry(3.2, 32, 20),
+  new THREE.MeshStandardMaterial({
+    color:0xff6040,
+    emissive:0xcc3020,
+    emissiveIntensity:0.75,
+    transparent:true,
+    opacity:0.45,
+    depthWrite:false
+  })
+);
+co2Mass.position.set(17, -4.0, 0);
+co2Mass.scale.set(1.2, 0.28, 1.3);  // flattened disk (reservoir is thin)
+scene.add(co2Mass);
+
+// Subtle reservoir-zone highlight
+const resHighlight = new THREE.Mesh(
+  new THREE.BoxGeometry(8, 1.8, 10),
+  new THREE.MeshStandardMaterial({
+    color:0x6a9ac0, transparent:true, opacity:0.18,
+    emissive:0x2a5078, emissiveIntensity:0.25,
+    depthWrite:false
+  })
+);
+resHighlight.position.set(17, -4.0, 0);
+scene.add(resHighlight);
+
+// ========== FOREST (biomass) — left side ==========
+const forestGroup = new THREE.Group();
+scene.add(forestGroup);
+
+function makeTree(x, z, scale=1) {
+  const tree = new THREE.Group();
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.18*scale, 0.25*scale, 1.4*scale, 8),
+    new THREE.MeshStandardMaterial({color:0x4a3520, roughness:0.9})
+  );
+  trunk.position.y = 0.7*scale;
+  trunk.castShadow = true;
+  tree.add(trunk);
+
+  const foliage = new THREE.Mesh(
+    new THREE.ConeGeometry(0.9*scale, 2.4*scale, 8),
+    new THREE.MeshStandardMaterial({color:0x4a7a3a, roughness:0.8})
+  );
+  foliage.position.y = 2.2*scale;
+  foliage.castShadow = true;
+  tree.add(foliage);
+
+  const foliage2 = new THREE.Mesh(
+    new THREE.ConeGeometry(0.7*scale, 1.8*scale, 8),
+    new THREE.MeshStandardMaterial({color:0x5a8a4a, roughness:0.8})
+  );
+  foliage2.position.y = 2.9*scale;
+  tree.add(foliage2);
+
+  tree.position.set(x, 0, z);
+  return tree;
+}
+
+// Place a small forest cluster
+const treePositions = [
+  [-16, -3, 1.0], [-14, -1, 0.9], [-17, 2, 1.1], [-13, 3, 1.0],
+  [-15.5, 0.5, 1.2], [-18, -1, 0.85], [-12, -2, 0.95], [-19, 1.5, 1.0],
+  [-14, -4, 0.9], [-11, 1, 1.1], [-16.5, 4, 0.95], [-13.5, 5, 1.0],
+  [-20, 0, 1.05], [-17, -4.5, 1.0]
+];
+treePositions.forEach(([x,z,s]) => forestGroup.add(makeTree(x,z,s)));
+
+// ========== VILLAGE — district heating & electricity consumers ==========
+const villageGroup = new THREE.Group();
+scene.add(villageGroup);
+
+function makeHouse(x, z, rotation=0, scale=1, roofColor=0x8a4030) {
+  const house = new THREE.Group();
+
+  // Base
+  const base = new THREE.Mesh(
+    new THREE.BoxGeometry(1.6*scale, 1.3*scale, 1.4*scale),
+    new THREE.MeshStandardMaterial({color:0xdcd5bc, roughness:0.85})
+  );
+  base.position.y = 0.65*scale;
+  base.castShadow = true;
+  base.receiveShadow = true;
+  house.add(base);
+
+  // Pyramidal roof
+  const rf = new THREE.Mesh(
+    new THREE.ConeGeometry(1.2*scale, 0.9*scale, 4),
+    new THREE.MeshStandardMaterial({color:roofColor, roughness:0.9})
+  );
+  rf.position.y = 1.75*scale;
+  rf.rotation.y = Math.PI / 4;
+  rf.castShadow = true;
+  house.add(rf);
+
+  // Glowing windows (warm light = heat + electricity delivered)
+  const winMat = new THREE.MeshStandardMaterial({
+    color:0xffd88a, emissive:0xffd88a, emissiveIntensity:0.85
+  });
+  const win1 = new THREE.Mesh(new THREE.PlaneGeometry(0.35*scale, 0.35*scale), winMat);
+  win1.position.set(0, 0.75*scale, 0.71*scale);
+  house.add(win1);
+  const win2 = new THREE.Mesh(new THREE.PlaneGeometry(0.35*scale, 0.35*scale), winMat);
+  win2.position.set(0.81*scale, 0.75*scale, 0);
+  win2.rotation.y = Math.PI / 2;
+  house.add(win2);
+
+  // Chimney
+  const chim = new THREE.Mesh(
+    new THREE.BoxGeometry(0.18*scale, 0.5*scale, 0.18*scale),
+    new THREE.MeshStandardMaterial({color:0x8a6a4a})
+  );
+  chim.position.set(0.3*scale, 2.0*scale, 0);
+  house.add(chim);
+
+  house.position.set(x, 0, z);
+  house.rotation.y = rotation;
+  return house;
+}
+
+// Small village cluster in front-left of plant
+const housePositions = [
+  [-9, 7.5, 0.2, 1.0, 0x8a4030],
+  [-6.5, 9, -0.3, 0.9, 0x6a4a3a],
+  [-11, 6.5, 0.4, 1.05, 0x7a3020],
+  [-7.5, 6, 0.1, 0.95, 0x8a5040],
+  [-10, 9.5, -0.2, 0.92, 0x5a3a2a]
+];
+housePositions.forEach(([x,z,r,s,c]) => villageGroup.add(makeHouse(x,z,r,s,c)));
+
+// District heating trunk pipe (orange, insulated) — plant → village
+const heatPipeA = makePipe(
+  new THREE.Vector3(-3, 0.4, 1.8),
+  new THREE.Vector3(-6, 0.4, 4.5),
+  0.18, 0xcc7840
+);
+scene.add(heatPipeA);
+const heatPipeB = makePipe(
+  new THREE.Vector3(-6, 0.4, 4.5),
+  new THREE.Vector3(-9, 0.4, 7),
+  0.18, 0xcc7840
+);
+scene.add(heatPipeB);
+
+// Utility pole for electricity
+const pole = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.1, 0.1, 5, 8),
+  new THREE.MeshStandardMaterial({color:0x3a2818})
+);
+pole.position.set(-5, 2.5, 3);
+pole.castShadow = true;
+scene.add(pole);
+
+const poleArm = new THREE.Mesh(
+  new THREE.BoxGeometry(1.6, 0.12, 0.12),
+  new THREE.MeshStandardMaterial({color:0x3a2818})
+);
+poleArm.position.set(-5, 4.85, 3);
+scene.add(poleArm);
+
+// ========== POWER PLANT — center-left ==========
+const plantGroup = new THREE.Group();
+plantGroup.position.set(-3, 0, 0);
+scene.add(plantGroup);
+
+// Main building
+const building = new THREE.Mesh(
+  new THREE.BoxGeometry(4, 3, 4),
+  new THREE.MeshStandardMaterial({color:0xa8a8a8, roughness:0.7})
+);
+building.position.y = 1.5;
+building.castShadow = true;
+plantGroup.add(building);
+
+// Roof detail
+const roof = new THREE.Mesh(
+  new THREE.BoxGeometry(4.2, 0.2, 4.2),
+  new THREE.MeshStandardMaterial({color:0x666666, roughness:0.6})
+);
+roof.position.y = 3.1;
+plantGroup.add(roof);
+
+// Smokestack
+const stack = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.4, 0.5, 4, 12),
+  new THREE.MeshStandardMaterial({color:0xb0b0b0, roughness:0.6})
+);
+stack.position.set(-1.2, 5, -1);
+stack.castShadow = true;
+plantGroup.add(stack);
+
+// Stack cap
+const stackCap = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.5, 0.5, 0.2, 12),
+  new THREE.MeshStandardMaterial({color:0x444444})
+);
+stackCap.position.set(-1.2, 7.1, -1);
+plantGroup.add(stackCap);
+
+// ========== CAPTURE UNIT — next to plant ==========
+const captureGroup = new THREE.Group();
+captureGroup.position.set(1.5, 0, 0);
+scene.add(captureGroup);
+
+// Absorber column
+const absorber = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.7, 0.8, 5, 16),
+  new THREE.MeshStandardMaterial({color:0x5a7a8a, roughness:0.4, metalness:0.6})
+);
+absorber.position.y = 2.5;
+absorber.castShadow = true;
+captureGroup.add(absorber);
+
+// Cap
+const absCap = new THREE.Mesh(
+  new THREE.SphereGeometry(0.7, 16, 8, 0, Math.PI*2, 0, Math.PI/2),
+  new THREE.MeshStandardMaterial({color:0x6a8a9a, metalness:0.7, roughness:0.3})
+);
+absCap.position.y = 5;
+captureGroup.add(absCap);
+
+// Secondary tank (stripper / regenerator)
+const tank2 = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.5, 0.5, 2.5, 12),
+  new THREE.MeshStandardMaterial({color:0x8a9aaa, metalness:0.5, roughness:0.4})
+);
+tank2.position.set(1.5, 1.25, 0.5);
+tank2.castShadow = true;
+captureGroup.add(tank2);
+
+// Off-gas outlet on top of absorber (clean N2/O2 exits here)
+const offgasOut = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.22, 0.28, 1.5, 12),
+  new THREE.MeshStandardMaterial({color:0x7a8a9a, metalness:0.5, roughness:0.4})
+);
+offgasOut.position.set(0, 6.4, 0);
+offgasOut.castShadow = true;
+captureGroup.add(offgasOut);
+
+const offgasCap = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.26, 0.26, 0.12, 12),
+  new THREE.MeshStandardMaterial({color:0x3a4550})
+);
+offgasCap.position.set(0, 7.2, 0);
+captureGroup.add(offgasCap);
+
+// Amine loop pipes between absorber and stripper (schematic)
+const amineLoop1 = makePipe(
+  new THREE.Vector3(2.1, 1.2, 0),    // absorber bottom side
+  new THREE.Vector3(2.8, 2.3, 0.5),  // stripper top
+  0.06, 0xa88040
+);
+scene.add(amineLoop1);
+const amineLoop2 = makePipe(
+  new THREE.Vector3(3.2, 0.6, 0.5),  // stripper bottom
+  new THREE.Vector3(2.1, 4.2, 0),    // absorber upper-side
+  0.06, 0x887020
+);
+scene.add(amineLoop2);
+
+// CO2 outlet from stripper to pipeline
+const co2Outlet = makePipe(
+  new THREE.Vector3(3, 2.5, 0.5),    // top of stripper
+  new THREE.Vector3(3, 1.3, 0.15),   // down to pipeline level
+  0.1, 0xcc6a5a
+);
+scene.add(co2Outlet);
+
+// Connecting pipes between plant and capture
+function makePipe(from, to, radius=0.08, color=0x888888) {
+  const dir = new THREE.Vector3().subVectors(to, from);
+  const len = dir.length();
+  const geo = new THREE.CylinderGeometry(radius, radius, len, 8);
+  const mat = new THREE.MeshStandardMaterial({color, metalness:0.6, roughness:0.4});
+  const pipe = new THREE.Mesh(geo, mat);
+  pipe.position.copy(from).add(to).multiplyScalar(0.5);
+  pipe.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir.clone().normalize());
+  return pipe;
+}
+
+// Plant → capture pipe
+scene.add(makePipe(
+  new THREE.Vector3(-1, 2, 0),
+  new THREE.Vector3(1.5, 2, 0),
+  0.12, 0xaaaaaa
+));
+
+// ========== PIPELINE — capture to storage ==========
+// Above-ground pipeline segment
+const pipeline = makePipe(
+  new THREE.Vector3(2.5, 1.2, 0),
+  new THREE.Vector3(11, 1.2, 0),
+  0.25, 0xcc6a5a
+);
+scene.add(pipeline);
+
+// Pipeline supports
+for (let x = 4; x <= 10; x += 2) {
+  const support = new THREE.Mesh(
+    new THREE.BoxGeometry(0.2, 1.2, 0.2),
+    new THREE.MeshStandardMaterial({color:0x555555})
+  );
+  support.position.set(x, 0.6, 0);
+  scene.add(support);
+}
+
+// Injection well (vertical pipe going into ground)
+const well = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.25, 0.25, 5.5, 12),
+  new THREE.MeshStandardMaterial({color:0xcc6a5a, metalness:0.5, roughness:0.5})
+);
+well.position.set(11, -1.25, 0);
+scene.add(well);
+
+// Wellhead
+const wellhead = new THREE.Mesh(
+  new THREE.BoxGeometry(0.8, 0.6, 0.8),
+  new THREE.MeshStandardMaterial({color:0xe0a0a0, metalness:0.4})
+);
+wellhead.position.set(11, 1.5, 0);
+scene.add(wellhead);
+
+// Horizontal well branch at reservoir depth
+const wellBranch = makePipe(
+  new THREE.Vector3(11, -4.0, 0),
+  new THREE.Vector3(20, -4.0, 0),
+  0.18, 0xcc6a5a
+);
+scene.add(wellBranch);
+
+// ========== PARTICLES: CO2 and biomass carbon ==========
+// We use multiple particle systems representing flows.
+
+function makeParticleSystem(count, color, size=0.18) {
+  const geometry = new THREE.BufferGeometry();
+  const positions = new Float32Array(count * 3);
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const material = new THREE.PointsMaterial({
+    color, size, transparent:true, opacity:0.9,
+    sizeAttenuation:true, depthWrite:false,
+    blending:THREE.AdditiveBlending
+  });
+  return new THREE.Points(geometry, material);
+}
+
+// Flow 1: atmospheric CO2 descending into forest
+const flow1 = makeParticleSystem(60, 0xe06b5a, 0.22);
+scene.add(flow1);
+const flow1Data = [];
+for (let i=0;i<60;i++) {
+  flow1Data.push({
+    x: -20 + Math.random()*10,
+    y: 8 + Math.random()*6,
+    z: -4 + Math.random()*8,
+    targetX: -16 + Math.random()*8,
+    targetY: 2 + Math.random()*2,
+    targetZ: -4 + Math.random()*8,
+    speed: 0.005 + Math.random()*0.008,
+    t: Math.random()
+  });
+}
+
+// Flow 2: biomass (green) from forest to plant
+const flow2 = makeParticleSystem(40, 0x8fbf73, 0.2);
+scene.add(flow2);
+const flow2Data = [];
+for (let i=0;i<40;i++) {
+  flow2Data.push({t: Math.random(), speed: 0.004 + Math.random()*0.003});
+}
+
+// Flow 3: CO2 rising from stack (what WOULD go to atmosphere without capture)
+const flow3 = makeParticleSystem(30, 0xe06b5a, 0.18);
+scene.add(flow3);
+const flow3Data = [];
+for (let i=0;i<30;i++) {
+  flow3Data.push({t: Math.random(), speed: 0.01 + Math.random()*0.008});
+}
+
+// Flow 4: captured CO2 from plant → capture unit → pipeline
+const flow4 = makeParticleSystem(50, 0xe06b5a, 0.2);
+scene.add(flow4);
+const flow4Data = [];
+for (let i=0;i<50;i++) {
+  flow4Data.push({t: Math.random(), speed: 0.005 + Math.random()*0.004});
+}
+
+// Flow 5: CO2 down the well into reservoir
+const flow5 = makeParticleSystem(70, 0xff7060, 0.24);
+scene.add(flow5);
+const flow5Data = [];
+for (let i=0;i<70;i++) {
+  flow5Data.push({t: Math.random(), speed: 0.006 + Math.random()*0.003});
+}
+
+// Flow 6: CO2 plume diffusing within the reservoir
+const flow6 = makeParticleSystem(140, 0xff7060, 0.26);
+scene.add(flow6);
+const flow6Data = [];
+for (let i=0;i<140;i++) {
+  flow6Data.push({
+    angle: Math.random() * Math.PI * 2,
+    radius: 0.3 + Math.random() * 3.6,
+    yOffset: (Math.random() - 0.5) * 1.5,
+    speed: 0.003 + Math.random() * 0.008,
+    phase: Math.random() * Math.PI * 2
+  });
+}
+
+// Flow 7: District heat — plant → village (warm orange)
+const flow7 = makeParticleSystem(50, 0xff9450, 0.2);
+scene.add(flow7);
+const flow7Data = [];
+for (let i=0; i<50; i++) {
+  flow7Data.push({t: Math.random(), speed: 0.004 + Math.random()*0.003});
+}
+
+// Flow 8: Electricity — plant → pole → village (bright yellow)
+const flow8 = makeParticleSystem(40, 0xfff066, 0.16);
+scene.add(flow8);
+const flow8Data = [];
+for (let i=0; i<40; i++) {
+  flow8Data.push({t: Math.random(), speed: 0.009 + Math.random()*0.006});
+}
+
+// Flow 9: Flue gas from plant → absorber inlet (mixed brownish gray)
+const flow9 = makeParticleSystem(50, 0xa08070, 0.22);
+scene.add(flow9);
+const flow9Data = [];
+for (let i=0; i<50; i++) {
+  flow9Data.push({t: Math.random(), speed: 0.006 + Math.random()*0.004});
+}
+
+// Flow 10: Off-gas (cleaned N2/O2) exiting absorber top (light blue-gray)
+const flow10 = makeParticleSystem(50, 0xcad6dc, 0.24);
+scene.add(flow10);
+const flow10Data = [];
+for (let i=0; i<50; i++) {
+  flow10Data.push({t: Math.random(), speed: 0.005 + Math.random()*0.005});
+}
+
+// ========== Ground markers / labels via sprites ==========
+function makeTextSprite(text, color='#e8ede8') {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512; canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = 'rgba(11,20,22,0.75)';
+  ctx.fillRect(0,0,512,128);
+  ctx.strokeStyle = 'rgba(143,191,115,0.6)';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(2,2,508,124);
+  ctx.fillStyle = color;
+  ctx.font = '600 48px "Hiragino Sans", "Noto Sans JP", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 256, 64);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.needsUpdate = true;
+  const mat = new THREE.SpriteMaterial({map:tex, transparent:true, depthTest:false});
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(4, 1, 1);
+  return sprite;
+}
+
+const labels = {
+  forest: makeTextSprite('① 森林・エネルギー作物'),
+  plant:  makeTextSprite('② バイオマス発電所（CHP）'),
+  capture:makeTextSprite('③ CO₂回収設備'),
+  storage:makeTextSprite('④ 貯留層に固定されたCO₂'),
+  village:makeTextSprite('住宅（熱+電力 供給先）'),
+  caprock:makeTextSprite('帽岩（遮蔽層）'),
+  offgas: makeTextSprite('オフガス（N₂・O₂）'),
+  absorber:makeTextSprite('吸収塔'),
+  stripper:makeTextSprite('再生塔')
+};
+labels.forest.position.set(-15, 7, 0);
+labels.plant.position.set(-3, 8.5, 0);
+labels.capture.position.set(1.5, 9.5, 0);
+labels.storage.position.set(17, -4.0, 8);
+labels.storage.scale.set(5, 1.25, 1);
+labels.village.position.set(-8.5, 3.5, 8);
+labels.village.scale.set(4.2, 1.05, 1);
+labels.caprock.position.set(17, -2.5, 8);
+labels.caprock.scale.set(3.5, 0.9, 1);
+labels.offgas.position.set(3.2, 12.5, 0);
+labels.offgas.scale.set(3.8, 0.95, 1);
+labels.absorber.position.set(1.5, 0.3, 3.5);
+labels.absorber.scale.set(2.0, 0.55, 1);
+labels.stripper.position.set(3, -0.3, 3.5);
+labels.stripper.scale.set(2.0, 0.55, 1);
+Object.values(labels).forEach(l => scene.add(l));
+
+// ========== Path utilities ==========
+// Curve helpers for particle flows
+
+// Forest → Plant: bezier-ish curve
+const forestToPlant = new THREE.CatmullRomCurve3([
+  new THREE.Vector3(-15, 1.5, 0),
+  new THREE.Vector3(-10, 1, 0),
+  new THREE.Vector3(-6, 0.8, 0),
+  new THREE.Vector3(-3, 1.5, 0)
+]);
+
+// Plant → Capture
+const plantToCapture = new THREE.CatmullRomCurve3([
+  new THREE.Vector3(-3, 3, 0),
+  new THREE.Vector3(-1, 2.5, 0),
+  new THREE.Vector3(1.5, 2, 0)
+]);
+
+// Capture → Pipeline → Well (CO2 exits the STRIPPER, not the absorber)
+const captureToWell = new THREE.CatmullRomCurve3([
+  new THREE.Vector3(3, 2.6, 0.5),
+  new THREE.Vector3(3, 1.6, 0.3),
+  new THREE.Vector3(3, 1.2, 0),
+  new THREE.Vector3(6, 1.2, 0),
+  new THREE.Vector3(11, 1.2, 0)
+]);
+
+// Flue gas: from plant → connecting pipe → into absorber (bottom inlet)
+const fluePath = new THREE.CatmullRomCurve3([
+  new THREE.Vector3(-3, 3, 0),
+  new THREE.Vector3(-1.2, 2, 0),
+  new THREE.Vector3(0, 2, 0),
+  new THREE.Vector3(1.5, 1.6, 0),
+  new THREE.Vector3(1.5, 0.8, 0)
+]);
+
+// Off-gas: from inside absorber top → outlet stack → rising into atmosphere
+const offgasPath = new THREE.CatmullRomCurve3([
+  new THREE.Vector3(1.5, 5.5, 0),
+  new THREE.Vector3(1.5, 6.8, 0),
+  new THREE.Vector3(1.7, 8.5, 0.3),
+  new THREE.Vector3(2.5, 11, 0.8),
+  new THREE.Vector3(3.5, 14, 1.6)
+]);
+
+// Down the well
+const wellPath = new THREE.CatmullRomCurve3([
+  new THREE.Vector3(11, 1.2, 0),
+  new THREE.Vector3(11, -2, 0),
+  new THREE.Vector3(11, -4.0, 0),
+  new THREE.Vector3(15, -4.0, 0),
+  new THREE.Vector3(19, -4.0, 0)
+]);
+
+// Stack emission path (only visible without capture)
+const stackPath = new THREE.CatmullRomCurve3([
+  new THREE.Vector3(-4.2, 7, -1),
+  new THREE.Vector3(-4, 10, -1),
+  new THREE.Vector3(-3, 13, 0),
+  new THREE.Vector3(-1, 15, 2)
+]);
+
+// District heating path: plant base → village (follows heat pipe)
+const heatPath = new THREE.CatmullRomCurve3([
+  new THREE.Vector3(-3, 0.4, 1.8),
+  new THREE.Vector3(-5, 0.4, 3.5),
+  new THREE.Vector3(-7, 0.4, 5.5),
+  new THREE.Vector3(-9, 0.4, 7)
+]);
+
+// Electricity path: plant top → pole → village rooftops
+const electricPath = new THREE.CatmullRomCurve3([
+  new THREE.Vector3(-3, 4.5, 0),
+  new THREE.Vector3(-4, 4.9, 1.8),
+  new THREE.Vector3(-5, 4.85, 3),
+  new THREE.Vector3(-7, 3.5, 5),
+  new THREE.Vector3(-9, 2.2, 7.5)
+]);
+
+// ========== Step / scene state ==========
+const stepContent = {
+  1: {
+    label:'STEP 1 / 4',
+    title:'① 大気CO₂の吸収',
+    desc:'樹木・エネルギー作物が光合成により大気中のCO₂を吸収し、バイオマスとして炭素を固定する。'
+  },
+  2: {
+    label:'STEP 2 / 4',
+    title:'② 熱電併給（CHP）',
+    desc:'バイオマスを燃焼し、熱電併給（CHP）により電力と熱を同時生成。地域熱供給網（fjernvarme）と送電網を通じて周辺の住宅に供給する。通常の発電ではここでCO₂が大気へ再放出される（カーボンニュートラル）。'
+  },
+  3: {
+    label:'STEP 3 / 4',
+    title:'③ アミン吸収によるCO₂分離',
+    desc:'排ガスを吸収塔（左）に導き、アミン溶液がCO₂を選択的に吸収。上部からは窒素・酸素を主成分とするオフガスが清浄な状態で大気へ放出。CO₂を含んだアミンは再生塔（右）へ送られ、加熱によって高純度のCO₂が分離・回収される。'
+  },
+  4: {
+    label:'STEP 4 / 4',
+    title:'④ 地中貯留（負の排出）',
+    desc:'回収したCO₂をパイプラインで輸送し、地下約1,000m以深の帯水層に圧入。上部の帽岩（遮蔽層）が漏出を防ぎ、CO₂は長期間地下に固定される。大気由来のCO₂が除去されるため、全体として排出量はマイナスとなる。'
+  }
+};
+
+let currentStep = 1;
+function updatePanel(step) {
+  const c = stepContent[step];
+  document.getElementById('step-label').textContent = c.label;
+  document.getElementById('step-title').textContent = c.title;
+  document.getElementById('step-desc').textContent = c.desc;
+  document.querySelectorAll('.step-btn').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.step) === step);
+  });
+}
+
+document.querySelectorAll('.step-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    currentStep = parseInt(btn.dataset.step);
+    updatePanel(currentStep);
+    moveCameraForStep(currentStep);
+  });
+});
+
+// Camera targets per step
+const camTargets = {
+  1: {pos:new THREE.Vector3(-20, 10, 18), look:new THREE.Vector3(-15, 3, 0)},
+  2: {pos:new THREE.Vector3(-11, 8, 22),  look:new THREE.Vector3(-5, 2.5, 3)},
+  3: {pos:new THREE.Vector3(4, 7, 17),    look:new THREE.Vector3(2, 4, 0)},
+  4: {pos:new THREE.Vector3(23, 1.5, 16), look:new THREE.Vector3(16, -3.8, 0)}
+};
+let camAnim = null;
+function moveCameraForStep(step) {
+  const t = camTargets[step];
+  camAnim = {
+    startPos: camera.position.clone(),
+    endPos: t.pos.clone(),
+    startLook: controls.target.clone(),
+    endLook: t.look.clone(),
+    t: 0
+  };
+}
+
+// ========== Animate ==========
+function updateFlow1(dt) {
+  // Atmospheric CO2 drifting down toward forest
+  const pos = flow1.geometry.attributes.position.array;
+  for (let i=0;i<flow1Data.length;i++) {
+    const d = flow1Data[i];
+    d.t += d.speed;
+    if (d.t >= 1) {
+      d.t = 0;
+      d.x = -22 + Math.random()*14;
+      d.y = 8 + Math.random()*6;
+      d.z = -5 + Math.random()*10;
+      d.targetX = -18 + Math.random()*10;
+      d.targetY = 2 + Math.random()*2;
+      d.targetZ = -5 + Math.random()*10;
+    }
+    const ease = d.t;
+    pos[i*3]   = d.x + (d.targetX - d.x)*ease;
+    pos[i*3+1] = d.y + (d.targetY - d.y)*ease;
+    pos[i*3+2] = d.z + (d.targetZ - d.z)*ease;
+  }
+  flow1.geometry.attributes.position.needsUpdate = true;
+}
+
+function updateCurveFlow(points, data, curve) {
+  const pos = points.geometry.attributes.position.array;
+  for (let i=0;i<data.length;i++) {
+    const d = data[i];
+    d.t += d.speed;
+    if (d.t >= 1) d.t = 0;
+    const p = curve.getPoint(d.t);
+    pos[i*3]   = p.x + (Math.random()-0.5)*0.15;
+    pos[i*3+1] = p.y + (Math.random()-0.5)*0.15;
+    pos[i*3+2] = p.z + (Math.random()-0.5)*0.15;
+  }
+  points.geometry.attributes.position.needsUpdate = true;
+}
+
+function updateStackFlow() {
+  const pos = flow3.geometry.attributes.position.array;
+  for (let i=0;i<flow3Data.length;i++) {
+    const d = flow3Data[i];
+    d.t += d.speed;
+    if (d.t >= 1) d.t = 0;
+    const p = stackPath.getPoint(d.t);
+    pos[i*3]   = p.x + (Math.random()-0.5)*0.3;
+    pos[i*3+1] = p.y + (Math.random()-0.5)*0.2;
+    pos[i*3+2] = p.z + (Math.random()-0.5)*0.3;
+  }
+  flow3.geometry.attributes.position.needsUpdate = true;
+}
+
+function updatePlume() {
+  const pos = flow6.geometry.attributes.position.array;
+  for (let i=0;i<flow6Data.length;i++) {
+    const d = flow6Data[i];
+    d.phase += d.speed;
+    const r = d.radius + Math.sin(d.phase) * 0.25;
+    pos[i*3]   = 17 + Math.cos(d.angle) * r;
+    pos[i*3+1] = -4.0 + d.yOffset + Math.sin(d.phase * 1.3) * 0.15;
+    pos[i*3+2] = Math.sin(d.angle) * r * 1.1;
+  }
+  flow6.geometry.attributes.position.needsUpdate = true;
+}
+
+// Opacity control based on current step
+function setFlowVisibility() {
+  const targets = {
+    1: {f1:1.0, f2:0.2, f3:0.0, f4:0.0, f5:0.0, f6:0.0, f7:0.15, f8:0.15, f9:0.0, f10:0.0},
+    2: {f1:0.3, f2:1.0, f3:0.7, f4:0.0, f5:0.0, f6:0.0, f7:1.0,  f8:1.0,  f9:0.0, f10:0.0},
+    3: {f1:0.2, f2:0.3, f3:0.0, f4:1.0, f5:0.3, f6:0.1, f7:0.3,  f8:0.3,  f9:1.0, f10:1.0},
+    4: {f1:0.2, f2:0.2, f3:0.0, f4:0.6, f5:0.9, f6:0.9, f7:0.2,  f8:0.2,  f9:0.25, f10:0.25}
+  }[currentStep];
+  flow1.material.opacity += (targets.f1 - flow1.material.opacity) * 0.05;
+  flow2.material.opacity += (targets.f2 - flow2.material.opacity) * 0.05;
+  flow3.material.opacity += (targets.f3 - flow3.material.opacity) * 0.05;
+  flow4.material.opacity += (targets.f4 - flow4.material.opacity) * 0.05;
+  flow5.material.opacity += (targets.f5 - flow5.material.opacity) * 0.05;
+  flow6.material.opacity += (targets.f6 - flow6.material.opacity) * 0.05;
+  flow7.material.opacity += (targets.f7 - flow7.material.opacity) * 0.05;
+  flow8.material.opacity += (targets.f8 - flow8.material.opacity) * 0.05;
+  flow9.material.opacity += (targets.f9 - flow9.material.opacity) * 0.05;
+  flow10.material.opacity += (targets.f10 - flow10.material.opacity) * 0.05;
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = 1;
+  updateFlow1(dt);
+  updateCurveFlow(flow2, flow2Data, forestToPlant);
+  updateStackFlow();
+  updateCurveFlow(flow4, flow4Data, captureToWell);
+  updateCurveFlow(flow5, flow5Data, wellPath);
+  updateCurveFlow(flow7, flow7Data, heatPath);
+  updateCurveFlow(flow8, flow8Data, electricPath);
+  updateCurveFlow(flow9, flow9Data, fluePath);
+  updateCurveFlow(flow10, flow10Data, offgasPath);
+  updatePlume();
+
+  // Subtle breathing on stored CO2 mass
+  const tPulse = Date.now() * 0.0008;
+  co2Mass.scale.x = 1.20 + Math.sin(tPulse) * 0.04;
+  co2Mass.scale.z = 1.30 + Math.cos(tPulse) * 0.04;
+  co2Mass.material.emissiveIntensity = 0.70 + Math.sin(tPulse * 1.5) * 0.10;
+
+  // Plant → capture connection for step 3
+  // (flow4 already covers capture → pipeline → well; we extend start from plant)
+  setFlowVisibility();
+
+  // Camera transition
+  if (camAnim) {
+    camAnim.t = Math.min(1, camAnim.t + 0.018);
+    const e = camAnim.t < 0.5
+      ? 2*camAnim.t*camAnim.t
+      : 1 - Math.pow(-2*camAnim.t+2, 2)/2;
+    camera.position.lerpVectors(camAnim.startPos, camAnim.endPos, e);
+    controls.target.lerpVectors(camAnim.startLook, camAnim.endLook, e);
+    if (camAnim.t >= 1) camAnim = null;
+  }
+
+  // Gentle label billboard (sprites face camera automatically)
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+// ========== Resize ==========
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// Initialize panel
+updatePanel(1);
+</script>
+</body>
+</html>
