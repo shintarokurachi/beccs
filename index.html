@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>バイオマスCCS（BECCS）3Dモデル</title>
-<meta name="description" content="バイオマスCCS（BECCS: Bioenergy with Carbon Capture and Storage）の4工程をインタラクティブに表示する3Dモデル。">
-<meta property="og:title" content="バイオマスCCS（BECCS）3Dモデル">
-<meta property="og:description" content="大気CO₂の吸収から地中貯留までを一枚の3Dシーンで可視化する教材。">
+<title>バイオマスCCSの工程可視化 | BECCS Interactive 3D Model</title>
+<meta name="description" content="熱電併給（CHP）・地域熱供給・CO₂の地中貯留を含む、バイオマスCCS（BECCS）の四工程をインタラクティブに可視化した3Dモデル。">
+<meta property="og:title" content="バイオマスCCSの工程可視化">
+<meta property="og:description" content="熱電併給と地中貯留を統合した、BECCSのインタラクティブ3D教材。">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
 <style>
@@ -74,7 +74,7 @@
     position:fixed;top:60px;right:12px;z-index:10;
     background:var(--panel);backdrop-filter:blur(10px);
     border:1px solid var(--line);border-radius:10px;padding:10px 12px;
-    font-size:11px;
+    font-size:11px;white-space:nowrap;
   }
   .legend-row{display:flex;align-items:center;gap:8px;margin:3px 0}
   .dot{width:9px;height:9px;border-radius:50%}
@@ -96,8 +96,8 @@
 <canvas id="canvas"></canvas>
 
 <div id="header">
-  <h1>バイオマスCCS（BECCS）の仕組み</h1>
-  <div class="sub">BIO-ENERGY WITH CARBON CAPTURE AND STORAGE</div>
+  <h1>バイオマスCCSの工程可視化</h1>
+  <div class="sub">BECCS — BIOENERGY WITH CARBON CAPTURE AND STORAGE</div>
 </div>
 
 <div id="badge">NEGATIVE EMISSIONS ／ 負の排出</div>
@@ -287,7 +287,11 @@ function makeHouse(x, z, rotation=0, scale=1, roofColor=0x8a4030) {
   // Base
   const base = new THREE.Mesh(
     new THREE.BoxGeometry(1.6*scale, 1.3*scale, 1.4*scale),
-    new THREE.MeshStandardMaterial({color:0xdcd5bc, roughness:0.85})
+    new THREE.MeshStandardMaterial({
+      color:0xdcd5bc, roughness:0.85,
+      transparent:true, opacity:0.55,
+      depthWrite:false
+    })
   );
   base.position.y = 0.65*scale;
   base.castShadow = true;
@@ -297,7 +301,11 @@ function makeHouse(x, z, rotation=0, scale=1, roofColor=0x8a4030) {
   // Pyramidal roof
   const rf = new THREE.Mesh(
     new THREE.ConeGeometry(1.2*scale, 0.9*scale, 4),
-    new THREE.MeshStandardMaterial({color:roofColor, roughness:0.9})
+    new THREE.MeshStandardMaterial({
+      color:roofColor, roughness:0.9,
+      transparent:true, opacity:0.7,
+      depthWrite:false
+    })
   );
   rf.position.y = 1.75*scale;
   rf.rotation.y = Math.PI / 4;
@@ -377,7 +385,11 @@ scene.add(plantGroup);
 // Main building
 const building = new THREE.Mesh(
   new THREE.BoxGeometry(4, 3, 4),
-  new THREE.MeshStandardMaterial({color:0xa8a8a8, roughness:0.7})
+  new THREE.MeshStandardMaterial({
+    color:0xa8a8a8, roughness:0.7,
+    transparent:true, opacity:0.45,
+    depthWrite:false
+  })
 );
 building.position.y = 1.5;
 building.castShadow = true;
@@ -386,7 +398,11 @@ plantGroup.add(building);
 // Roof detail
 const roof = new THREE.Mesh(
   new THREE.BoxGeometry(4.2, 0.2, 4.2),
-  new THREE.MeshStandardMaterial({color:0x666666, roughness:0.6})
+  new THREE.MeshStandardMaterial({
+    color:0x666666, roughness:0.6,
+    transparent:true, opacity:0.6,
+    depthWrite:false
+  })
 );
 roof.position.y = 3.1;
 plantGroup.add(roof);
@@ -394,7 +410,11 @@ plantGroup.add(roof);
 // Smokestack
 const stack = new THREE.Mesh(
   new THREE.CylinderGeometry(0.4, 0.5, 4, 12),
-  new THREE.MeshStandardMaterial({color:0xb0b0b0, roughness:0.6})
+  new THREE.MeshStandardMaterial({
+    color:0xb0b0b0, roughness:0.6,
+    transparent:true, opacity:0.55,
+    depthWrite:false
+  })
 );
 stack.position.set(-1.2, 5, -1);
 stack.castShadow = true;
@@ -403,7 +423,7 @@ plantGroup.add(stack);
 // Stack cap
 const stackCap = new THREE.Mesh(
   new THREE.CylinderGeometry(0.5, 0.5, 0.2, 12),
-  new THREE.MeshStandardMaterial({color:0x444444})
+  new THREE.MeshStandardMaterial({color:0x444444, transparent:true, opacity:0.7})
 );
 stackCap.position.set(-1.2, 7.1, -1);
 plantGroup.add(stackCap);
@@ -416,7 +436,11 @@ scene.add(captureGroup);
 // Absorber column
 const absorber = new THREE.Mesh(
   new THREE.CylinderGeometry(0.7, 0.8, 5, 16),
-  new THREE.MeshStandardMaterial({color:0x5a7a8a, roughness:0.4, metalness:0.6})
+  new THREE.MeshStandardMaterial({
+    color:0x5a7a8a, roughness:0.4, metalness:0.6,
+    transparent:true, opacity:0.5,
+    depthWrite:false
+  })
 );
 absorber.position.y = 2.5;
 absorber.castShadow = true;
@@ -425,7 +449,11 @@ captureGroup.add(absorber);
 // Cap
 const absCap = new THREE.Mesh(
   new THREE.SphereGeometry(0.7, 16, 8, 0, Math.PI*2, 0, Math.PI/2),
-  new THREE.MeshStandardMaterial({color:0x6a8a9a, metalness:0.7, roughness:0.3})
+  new THREE.MeshStandardMaterial({
+    color:0x6a8a9a, metalness:0.7, roughness:0.3,
+    transparent:true, opacity:0.55,
+    depthWrite:false
+  })
 );
 absCap.position.y = 5;
 captureGroup.add(absCap);
@@ -433,7 +461,11 @@ captureGroup.add(absCap);
 // Secondary tank (stripper / regenerator)
 const tank2 = new THREE.Mesh(
   new THREE.CylinderGeometry(0.5, 0.5, 2.5, 12),
-  new THREE.MeshStandardMaterial({color:0x8a9aaa, metalness:0.5, roughness:0.4})
+  new THREE.MeshStandardMaterial({
+    color:0x8a9aaa, metalness:0.5, roughness:0.4,
+    transparent:true, opacity:0.5,
+    depthWrite:false
+  })
 );
 tank2.position.set(1.5, 1.25, 0.5);
 tank2.castShadow = true;
@@ -442,7 +474,11 @@ captureGroup.add(tank2);
 // Off-gas outlet on top of absorber (clean N2/O2 exits here)
 const offgasOut = new THREE.Mesh(
   new THREE.CylinderGeometry(0.22, 0.28, 1.5, 12),
-  new THREE.MeshStandardMaterial({color:0x7a8a9a, metalness:0.5, roughness:0.4})
+  new THREE.MeshStandardMaterial({
+    color:0x7a8a9a, metalness:0.5, roughness:0.4,
+    transparent:true, opacity:0.55,
+    depthWrite:false
+  })
 );
 offgasOut.position.set(0, 6.4, 0);
 offgasOut.castShadow = true;
@@ -482,7 +518,11 @@ function makePipe(from, to, radius=0.08, color=0x888888) {
   const dir = new THREE.Vector3().subVectors(to, from);
   const len = dir.length();
   const geo = new THREE.CylinderGeometry(radius, radius, len, 8);
-  const mat = new THREE.MeshStandardMaterial({color, metalness:0.6, roughness:0.4});
+  const mat = new THREE.MeshStandardMaterial({
+    color, metalness:0.6, roughness:0.4,
+    transparent:true, opacity:0.55,
+    depthWrite:false
+  });
   const pipe = new THREE.Mesh(geo, mat);
   pipe.position.copy(from).add(to).multiplyScalar(0.5);
   pipe.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir.clone().normalize());
@@ -518,7 +558,11 @@ for (let x = 4; x <= 10; x += 2) {
 // Injection well (vertical pipe going into ground)
 const well = new THREE.Mesh(
   new THREE.CylinderGeometry(0.25, 0.25, 5.5, 12),
-  new THREE.MeshStandardMaterial({color:0xcc6a5a, metalness:0.5, roughness:0.5})
+  new THREE.MeshStandardMaterial({
+    color:0xcc6a5a, metalness:0.5, roughness:0.5,
+    transparent:true, opacity:0.5,
+    depthWrite:false
+  })
 );
 well.position.set(11, -1.25, 0);
 scene.add(well);
@@ -526,7 +570,11 @@ scene.add(well);
 // Wellhead
 const wellhead = new THREE.Mesh(
   new THREE.BoxGeometry(0.8, 0.6, 0.8),
-  new THREE.MeshStandardMaterial({color:0xe0a0a0, metalness:0.4})
+  new THREE.MeshStandardMaterial({
+    color:0xe0a0a0, metalness:0.4,
+    transparent:true, opacity:0.65,
+    depthWrite:false
+  })
 );
 wellhead.position.set(11, 1.5, 0);
 scene.add(wellhead);
@@ -652,23 +700,23 @@ for (let i=0; i<50; i++) {
 // ========== Ground markers / labels via sprites ==========
 function makeTextSprite(text, color='#e8ede8') {
   const canvas = document.createElement('canvas');
-  canvas.width = 512; canvas.height = 128;
+  canvas.width = 768; canvas.height = 96;
   const ctx = canvas.getContext('2d');
   ctx.fillStyle = 'rgba(11,20,22,0.75)';
-  ctx.fillRect(0,0,512,128);
+  ctx.fillRect(0,0,768,96);
   ctx.strokeStyle = 'rgba(143,191,115,0.6)';
-  ctx.lineWidth = 3;
-  ctx.strokeRect(2,2,508,124);
+  ctx.lineWidth = 2;
+  ctx.strokeRect(1,1,766,94);
   ctx.fillStyle = color;
-  ctx.font = '600 48px "Hiragino Sans", "Noto Sans JP", sans-serif';
+  ctx.font = '600 32px "Hiragino Sans", "Noto Sans JP", sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(text, 256, 64);
+  ctx.fillText(text, 384, 48);
   const tex = new THREE.CanvasTexture(canvas);
   tex.needsUpdate = true;
   const mat = new THREE.SpriteMaterial({map:tex, transparent:true, depthTest:false});
   const sprite = new THREE.Sprite(mat);
-  sprite.scale.set(4, 1, 1);
+  sprite.scale.set(3.2, 0.4, 1);
   return sprite;
 }
 
@@ -687,17 +735,17 @@ labels.forest.position.set(-15, 7, 0);
 labels.plant.position.set(-3, 8.5, 0);
 labels.capture.position.set(1.5, 9.5, 0);
 labels.storage.position.set(17, -4.0, 8);
-labels.storage.scale.set(5, 1.25, 1);
+labels.storage.scale.set(4.5, 0.56, 1);
 labels.village.position.set(-8.5, 3.5, 8);
-labels.village.scale.set(4.2, 1.05, 1);
+labels.village.scale.set(4.2, 0.52, 1);
 labels.caprock.position.set(17, -2.5, 8);
-labels.caprock.scale.set(3.5, 0.9, 1);
+labels.caprock.scale.set(3.0, 0.38, 1);
 labels.offgas.position.set(3.2, 12.5, 0);
-labels.offgas.scale.set(3.8, 0.95, 1);
+labels.offgas.scale.set(3.6, 0.45, 1);
 labels.absorber.position.set(1.5, 0.3, 3.5);
-labels.absorber.scale.set(2.0, 0.55, 1);
+labels.absorber.scale.set(2.4, 0.3, 1);
 labels.stripper.position.set(3, -0.3, 3.5);
-labels.stripper.scale.set(2.0, 0.55, 1);
+labels.stripper.scale.set(2.4, 0.3, 1);
 Object.values(labels).forEach(l => scene.add(l));
 
 // ========== Path utilities ==========
