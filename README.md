@@ -1,4 +1,4 @@
-# beccs-3d-model
+# beccs
 
 **バイオマスCCSの工程可視化：熱電併給と地中貯留のインタラクティブ3Dモデル**
 
@@ -6,7 +6,7 @@
 
 ## Demo
 
-https://shintarokurachi.github.io/beccs-3d-model/
+https://shintarokurachi.github.io/beccs/
 
 ## 概要 / Overview
 
@@ -62,8 +62,8 @@ Open `index.html` in any modern browser.
 ## ローカル起動 / Run locally
 
 ```bash
-git clone https://github.com/shintarokurachi/beccs-3d-model.git
-cd beccs-3d-model
+git clone https://github.com/shintarokurachi/beccs.git
+cd beccs
 python3 -m http.server 8000
 ```
 
@@ -89,7 +89,7 @@ MIT License. 詳細は [LICENSE](./LICENSE) を参照。
 倉地真太郎（2026）「バイオマスCCSの工程可視化：熱電併給と地中貯留のインタラクティブ3Dモデル」
 Kurachi, S. (2026). An Interactive 3D Model of BECCS:
 Combined Heat & Power and Geological Storage.
-https://github.com/shintarokurachi/beccs-3d-model
+https://github.com/shintarokurachi/beccs
 ```
 
 ## 作成 / Author
