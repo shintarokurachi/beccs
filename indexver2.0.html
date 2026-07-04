@@ -1,0 +1,1231 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>バイオマスCCSの工程可視化 | BECCS Interactive 3D Model</title>
+<meta name="description" content="熱電併給（CHP）・地域熱供給・CO₂の地中貯留を含む、バイオマスCCS（BECCS）の四工程をインタラクティブに可視化した3Dモデル。">
+<meta property="og:title" content="バイオマスCCSの工程可視化">
+<meta property="og:description" content="熱電併給と地中貯留を統合した、BECCSのインタラクティブ3D教材。">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+  :root{
+    --bg:#0a141c;
+    --ink:#edf3ec;
+    --muted:#9cb0a4;
+    --bio:#8fd06f;
+    --co2:#ff6f5e;
+    --heat:#ff9a52;
+    --elec:#ffe066;
+    --offgas:#ccdde6;
+    --flue:#ad8d76;
+    --panel:rgba(9,18,24,0.88);
+    --panel-soft:rgba(9,18,24,0.72);
+    --line:rgba(143,208,111,0.28);
+    --line-strong:rgba(143,208,111,0.55);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;width:100%;overflow:hidden;background:var(--bg);color:var(--ink);
+    font-family:"Hiragino Sans","Noto Sans JP","Yu Gothic","Helvetica Neue",sans-serif;
+    -webkit-font-smoothing:antialiased}
+  #canvas{position:fixed;inset:0;display:block}
+  button{font-family:inherit}
+
+  /* ---------- Header ---------- */
+  #header{
+    position:fixed;top:0;left:0;right:0;padding:16px 18px 30px;z-index:10;
+    background:linear-gradient(180deg,rgba(8,16,22,0.92) 0%,rgba(8,16,22,0.55) 55%,rgba(8,16,22,0) 100%);
+    pointer-events:none;
+  }
+  #header h1{
+    font-size:16px;font-weight:600;letter-spacing:0.05em;margin-bottom:3px;
+  }
+  #header .sub{
+    font-size:10px;color:var(--muted);letter-spacing:0.22em;
+    font-family:ui-monospace,"SF Mono",Menlo,monospace;
+  }
+  #header .sub b{color:var(--bio);font-weight:600}
+
+  /* ---------- Negative-emissions badge ---------- */
+  #badge{
+    position:fixed;top:64px;left:14px;z-index:10;
+    display:flex;align-items:center;gap:7px;
+    background:rgba(255,111,94,0.10);
+    border:1px solid rgba(255,111,94,0.45);
+    border-radius:999px;padding:6px 12px;font-size:10.5px;
+    color:#ffb0a4;letter-spacing:0.12em;
+  }
+  #badge::before{
+    content:"";width:7px;height:7px;border-radius:50%;
+    background:var(--co2);box-shadow:0 0 8px var(--co2);
+    animation:pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:.5}50%{opacity:1}}
+
+  /* ---------- Legend ---------- */
+  #legend{
+    position:fixed;top:64px;right:14px;z-index:10;
+    background:var(--panel-soft);backdrop-filter:blur(12px);
+    border:1px solid var(--line);border-radius:12px;
+    font-size:11px;white-space:nowrap;overflow:hidden;
+    transition:max-height .25s ease;
+  }
+  #legend-head{
+    display:flex;align-items:center;justify-content:space-between;gap:14px;
+    padding:8px 12px;cursor:pointer;user-select:none;
+    font-size:10px;letter-spacing:0.16em;color:var(--muted);
+  }
+  #legend-head .chev{transition:transform .25s ease;font-size:9px}
+  #legend.closed .chev{transform:rotate(-90deg)}
+  #legend-body{padding:0 12px 10px}
+  #legend.closed #legend-body{display:none}
+  .legend-row{display:flex;align-items:center;gap:9px;margin:4px 0;transition:opacity .35s}
+  .legend-row.dim{opacity:0.32}
+  .dot{width:9px;height:9px;border-radius:50%;flex:none}
+  .dot.bio{background:var(--bio);box-shadow:0 0 6px rgba(143,208,111,.7)}
+  .dot.co2{background:var(--co2);box-shadow:0 0 6px rgba(255,111,94,.7)}
+  .dot.flue{background:var(--flue)}
+  .dot.offgas{background:var(--offgas)}
+  .dot.heat{background:var(--heat);box-shadow:0 0 6px rgba(255,154,82,.6)}
+  .dot.elec{background:var(--elec);box-shadow:0 0 6px rgba(255,224,102,.6)}
+
+  /* ---------- Bottom panel ---------- */
+  #panel{
+    position:fixed;left:12px;right:12px;bottom:12px;z-index:10;
+    max-width:660px;margin:0 auto;
+    background:var(--panel);backdrop-filter:blur(14px);
+    border:1px solid var(--line);border-radius:16px;
+    padding:13px 16px 13px;
+    box-shadow:0 10px 40px rgba(0,0,0,0.45);
+  }
+
+  /* Carbon chain strip — 大気→森林→CHP→回収→地中 */
+  #chain{
+    display:flex;align-items:center;gap:0;
+    margin-bottom:11px;
+  }
+  .chain-node{
+    flex:none;display:flex;align-items:center;gap:5px;
+    font-size:10px;letter-spacing:0.06em;color:var(--muted);
+    padding:4px 8px;border-radius:999px;
+    border:1px solid transparent;
+    transition:all .4s ease;
+  }
+  .chain-node .cdot{width:6px;height:6px;border-radius:50%;background:var(--muted);opacity:.5;transition:all .4s}
+  .chain-node.lit{color:var(--ink);border-color:var(--line-strong);background:rgba(143,208,111,0.08)}
+  .chain-node.lit .cdot{opacity:1;box-shadow:0 0 7px currentColor}
+  .chain-node[data-node="air"].lit .cdot,
+  .chain-node[data-node="storage"].lit .cdot{background:var(--co2);color:var(--co2)}
+  .chain-node[data-node="forest"].lit .cdot{background:var(--bio);color:var(--bio)}
+  .chain-node[data-node="chp"].lit .cdot{background:var(--heat);color:var(--heat)}
+  .chain-node[data-node="capture"].lit .cdot{background:var(--offgas);color:var(--offgas)}
+  .chain-node[data-node="storage"].lit{border-color:rgba(255,111,94,.5);background:rgba(255,111,94,0.08)}
+  .chain-arrow{
+    flex:1;height:1px;min-width:8px;margin:0 2px;position:relative;
+    background:rgba(156,176,164,0.25);transition:background .4s;
+  }
+  .chain-arrow::after{
+    content:"";position:absolute;right:-1px;top:-2.5px;
+    border-left:5px solid rgba(156,176,164,0.35);
+    border-top:3px solid transparent;border-bottom:3px solid transparent;
+    transition:border-left-color .4s;
+  }
+  .chain-arrow.lit{background:var(--bio)}
+  .chain-arrow.lit::after{border-left-color:var(--bio)}
+  .chain-arrow.lit.co2{background:var(--co2)}
+  .chain-arrow.lit.co2::after{border-left-color:var(--co2)}
+
+  #panel .step-label{
+    font-size:9.5px;color:var(--bio);letter-spacing:0.2em;margin-bottom:5px;
+    text-transform:uppercase;font-weight:600;
+    font-family:ui-monospace,"SF Mono",Menlo,monospace;
+    display:flex;align-items:center;gap:10px;
+  }
+  #balance{
+    font-weight:600;letter-spacing:0.08em;font-size:9.5px;
+    padding:2px 8px;border-radius:999px;
+    border:1px solid rgba(156,176,164,0.35);color:var(--muted);
+    transition:all .4s;
+  }
+  #balance.negative{
+    color:#ffb0a4;border-color:rgba(255,111,94,.55);background:rgba(255,111,94,.10);
+  }
+  #panel h2{
+    font-size:15.5px;font-weight:600;margin-bottom:5px;line-height:1.3;
+  }
+  #panel p{
+    font-size:12px;color:var(--muted);line-height:1.62;margin-bottom:11px;
+    min-height:3.2em;
+  }
+  #panel p b{color:var(--ink);font-weight:600}
+
+  #controls{display:flex;gap:6px;align-items:stretch}
+  #steps{display:flex;gap:6px;flex:1}
+  .step-btn{
+    flex:1;padding:9px 4px;font-size:11px;
+    background:transparent;color:var(--muted);
+    border:1px solid var(--line);border-radius:8px;
+    cursor:pointer;transition:all .2s;
+    letter-spacing:0.02em;
+  }
+  .step-btn.active{
+    background:var(--bio);color:#0a141c;border-color:var(--bio);
+    font-weight:700;box-shadow:0 2px 14px rgba(143,208,111,0.35);
+  }
+  .step-btn:hover:not(.active){border-color:var(--line-strong);color:var(--ink)}
+  .icon-btn{
+    flex:none;width:38px;padding:0;font-size:13px;
+    background:transparent;color:var(--muted);
+    border:1px solid var(--line);border-radius:8px;
+    cursor:pointer;transition:all .2s;line-height:1;
+  }
+  .icon-btn:hover{border-color:var(--line-strong);color:var(--ink)}
+  .icon-btn.on{background:rgba(143,208,111,0.16);color:var(--bio);border-color:var(--line-strong)}
+  /* autoplay progress under the panel */
+  #autobar{
+    position:absolute;left:16px;right:16px;bottom:6px;height:2px;
+    border-radius:2px;background:rgba(143,208,111,0.12);overflow:hidden;
+    opacity:0;transition:opacity .3s;
+  }
+  #autobar.on{opacity:1}
+  #autobar i{
+    display:block;height:100%;width:0%;
+    background:var(--bio);border-radius:2px;
+  }
+
+  #hint{
+    position:fixed;bottom:172px;left:50%;transform:translateX(-50%);
+    z-index:9;font-size:10.5px;color:var(--muted);letter-spacing:0.1em;
+    background:var(--panel-soft);border:1px solid var(--line);
+    border-radius:999px;padding:5px 14px;backdrop-filter:blur(8px);
+    transition:opacity 1s;pointer-events:none;white-space:nowrap;
+  }
+
+  @media (max-width:560px){
+    #header h1{font-size:14px}
+    #badge{top:58px;font-size:9.5px}
+    #legend{top:58px}
+    .chain-node{padding:3px 5px;font-size:9px}
+    #panel p{font-size:11.5px}
+    .step-btn{font-size:10px;padding:8px 2px}
+    #hint{display:none}
+  }
+  @media (prefers-reduced-motion:reduce){
+    #badge::before{animation:none}
+  }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+
+<div id="header">
+  <h1>バイオマスCCSの工程可視化</h1>
+  <div class="sub"><b>BECCS</b> — BIOENERGY WITH CARBON CAPTURE AND STORAGE</div>
+</div>
+
+<div id="badge">NEGATIVE EMISSIONS ／ 負の排出</div>
+
+<div id="legend">
+  <div id="legend-head" role="button" tabindex="0" aria-label="凡例の開閉">
+    <span>凡例</span><span class="chev">▼</span>
+  </div>
+  <div id="legend-body">
+    <div class="legend-row" data-key="bio"><span class="dot bio"></span><span>バイオマス由来の炭素</span></div>
+    <div class="legend-row" data-key="co2"><span class="dot co2"></span><span>CO<sub>2</sub>の流れ</span></div>
+    <div class="legend-row" data-key="flue"><span class="dot flue"></span><span>排ガス（未処理）</span></div>
+    <div class="legend-row" data-key="offgas"><span class="dot offgas"></span><span>オフガス（N<sub>2</sub>・O<sub>2</sub>）</span></div>
+    <div class="legend-row" data-key="heat"><span class="dot heat"></span><span>熱（地域熱供給）</span></div>
+    <div class="legend-row" data-key="elec"><span class="dot elec"></span><span>電力</span></div>
+  </div>
+</div>
+
+<div id="hint">ドラッグで回転 ／ ピンチ・ホイールでズーム</div>
+
+<div id="panel">
+  <div id="chain">
+    <div class="chain-node lit" data-node="air"><span class="cdot"></span>大気</div>
+    <div class="chain-arrow" data-arrow="1"></div>
+    <div class="chain-node" data-node="forest"><span class="cdot"></span>森林</div>
+    <div class="chain-arrow" data-arrow="2"></div>
+    <div class="chain-node" data-node="chp"><span class="cdot"></span>CHP</div>
+    <div class="chain-arrow co2" data-arrow="3"></div>
+    <div class="chain-node" data-node="capture"><span class="cdot"></span>回収</div>
+    <div class="chain-arrow co2" data-arrow="4"></div>
+    <div class="chain-node" data-node="storage"><span class="cdot"></span>地中</div>
+  </div>
+  <div class="step-label"><span id="step-label">STEP 1 / 4</span><span id="balance">大気CO₂：吸収中</span></div>
+  <h2 id="step-title">① 大気CO₂の吸収</h2>
+  <p id="step-desc">樹木・エネルギー作物が光合成により大気中のCO₂を吸収し、バイオマスとして炭素を固定する。</p>
+  <div id="controls">
+    <div id="steps">
+      <button class="step-btn active" data-step="1">① 吸収</button>
+      <button class="step-btn" data-step="2">② 燃焼</button>
+      <button class="step-btn" data-step="3">③ 回収</button>
+      <button class="step-btn" data-step="4">④ 貯留</button>
+    </div>
+    <button class="icon-btn" id="playBtn" title="自動再生" aria-label="自動再生">▶</button>
+    <button class="icon-btn" id="resetBtn" title="視点をリセット" aria-label="視点をリセット">⌂</button>
+  </div>
+  <div id="autobar"><i id="autofill"></i></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+// ================================================================
+//  BECCS Interactive 3D — improved rendering & readability
+// ================================================================
+const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const SPEED = REDUCED ? 0.45 : 1.0;
+
+// ---------- Palette (matches CSS tokens) ----------
+const C = {
+  bio:    0x8fd06f,
+  co2:    0xff6f5e,
+  co2Hot: 0xff8570,
+  heat:   0xff9a52,
+  elec:   0xffe066,
+  offgas: 0xccdde6,
+  flue:   0xad8d76,
+  skyTop: 0x081018,
+  skyLow: 0x14313a
+};
+
+// ========== Scene setup ==========
+const canvas = document.getElementById('canvas');
+const scene = new THREE.Scene();
+
+// Gradient sky (canvas texture) — deep nordic night fading to a teal horizon
+(function makeSky(){
+  const cv = document.createElement('canvas');
+  cv.width = 2; cv.height = 512;
+  const ctx = cv.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, 0, 512);
+  g.addColorStop(0.00, '#060c14');
+  g.addColorStop(0.55, '#0a1a22');
+  g.addColorStop(0.78, '#123038');
+  g.addColorStop(1.00, '#0a141c');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 2, 512);
+  const tex = new THREE.CanvasTexture(cv);
+  scene.background = tex;
+})();
+scene.fog = new THREE.Fog(0x0c1c24, 38, 110);
+
+const camera = new THREE.PerspectiveCamera(
+  45, window.innerWidth/window.innerHeight, 0.1, 300
+);
+camera.position.set(-20, 10, 18);
+
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.12;
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 8;
+controls.maxDistance = 60;
+controls.maxPolarAngle = Math.PI * 0.49;
+controls.target.set(-15, 3, 0);
+
+// ========== Lighting ==========
+scene.add(new THREE.HemisphereLight(0x9fc6cc, 0x1a241c, 0.55));
+const sun = new THREE.DirectionalLight(0xffe9c8, 1.15);
+sun.position.set(-14, 22, 12);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -28; sun.shadow.camera.right = 28;
+sun.shadow.camera.top = 24;   sun.shadow.camera.bottom = -22;
+sun.shadow.bias = -0.0006;
+scene.add(sun);
+const fill = new THREE.DirectionalLight(0x8fd06f, 0.14);
+fill.position.set(12, 6, -12);
+scene.add(fill);
+// Warm glow rising from the reservoir side, so underground reads clearly
+const resLight = new THREE.PointLight(0xff6f5e, 0.65, 22);
+resLight.position.set(17, -3.5, 2);
+scene.add(resLight);
+
+// ========== Materials helpers ==========
+function std(color, opt={}) {
+  return new THREE.MeshStandardMaterial(Object.assign({color, roughness:0.85}, opt));
+}
+function metal(color, opt={}) {
+  return new THREE.MeshStandardMaterial(Object.assign({color, roughness:0.35, metalness:0.65}, opt));
+}
+
+// ========== Ground (left half; right half exposes cross-section) ==========
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(44, 50),
+  std(0x2c3f2b, {roughness:0.95})
+);
+ground.rotation.x = -Math.PI/2;
+ground.position.set(-18, 0.01, 0);
+ground.receiveShadow = true;
+scene.add(ground);
+
+// Subtle darker patches for terrain variation
+[[-14,-5,4],[-8,6,5],[-19,3,3.5],[-4,-6,3]].forEach(([x,z,r])=>{
+  const patch = new THREE.Mesh(
+    new THREE.CircleGeometry(r, 24),
+    std(0x25361f, {roughness:1})
+  );
+  patch.rotation.x = -Math.PI/2;
+  patch.position.set(x, 0.02, z);
+  patch.receiveShadow = true;
+  scene.add(patch);
+});
+
+// Cliff face at the cross-section boundary
+const cliff = new THREE.Mesh(
+  new THREE.BoxGeometry(0.18, 0.18, 14.2),
+  std(0x060a08)
+);
+cliff.position.set(4, 0.09, 0);
+scene.add(cliff);
+
+// ========== Subsurface layers (exposed cross-section, right side) ==========
+function addLayer(y, h, color, opacity) {
+  const m = new THREE.Mesh(
+    new THREE.BoxGeometry(20, h, 14),
+    new THREE.MeshStandardMaterial({
+      color, roughness:0.92,
+      transparent: opacity < 1,
+      opacity,
+      depthWrite: opacity > 0.95,
+      side: THREE.DoubleSide
+    })
+  );
+  m.position.set(14, y, 0);
+  scene.add(m);
+  return m;
+}
+addLayer(-0.5, 1.0, 0x40301c, 0.90);  // soil
+addLayer(-1.5, 1.0, 0x6f5533, 0.84);  // rock
+const caprockLayer =
+addLayer(-2.5, 1.0, 0x453a52, 0.92);  // caprock (seal) — slate violet
+addLayer(-4.0, 2.0, 0x2f5286, 0.38);  // reservoir / saline aquifer — translucent
+addLayer(-6.0, 2.0, 0x18222c, 0.94);  // deep rock
+
+// Thin luminous edges marking layer boundaries (reads like a textbook cross-section)
+[[0,-1],[0,-2],[0,-3],[0,-5]].forEach(([_,y])=>{
+  const line = new THREE.Mesh(
+    new THREE.BoxGeometry(20.05, 0.03, 14.05),
+    new THREE.MeshBasicMaterial({color:0x9cb0a4, transparent:true, opacity:0.13})
+  );
+  line.position.set(14, y, 0);
+  scene.add(line);
+});
+
+// Stored CO2 mass — glowing flattened plume in the reservoir
+const co2Mass = new THREE.Mesh(
+  new THREE.SphereGeometry(3.2, 40, 24),
+  new THREE.MeshStandardMaterial({
+    color:0xff6248, emissive:0xd23018,
+    emissiveIntensity:0.85,
+    transparent:true, opacity:0.42, depthWrite:false
+  })
+);
+co2Mass.position.set(17, -4.0, 0);
+co2Mass.scale.set(1.2, 0.28, 1.3);
+scene.add(co2Mass);
+
+const resHighlight = new THREE.Mesh(
+  new THREE.BoxGeometry(8, 1.8, 10),
+  new THREE.MeshStandardMaterial({
+    color:0x6a9ac0, transparent:true, opacity:0.14,
+    emissive:0x2a5078, emissiveIntensity:0.25, depthWrite:false
+  })
+);
+resHighlight.position.set(17, -4.0, 0);
+scene.add(resHighlight);
+
+// ========== FOREST (left) ==========
+const forestGroup = new THREE.Group();
+scene.add(forestGroup);
+
+function makeTree(x, z, scale) {
+  const tree = new THREE.Group();
+  const trunk = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.16*scale, 0.24*scale, 1.4*scale, 8),
+    std(0x4c3a22, {roughness:0.9})
+  );
+  trunk.position.y = 0.7*scale;
+  trunk.castShadow = true;
+  tree.add(trunk);
+
+  const shade = 0.85 + Math.random()*0.3;
+  const foliage = new THREE.Mesh(
+    new THREE.ConeGeometry(0.9*scale, 2.4*scale, 8),
+    std(new THREE.Color(0x4a7a3a).multiplyScalar(shade))
+  );
+  foliage.position.y = 2.2*scale;
+  foliage.castShadow = true;
+  tree.add(foliage);
+
+  const foliage2 = new THREE.Mesh(
+    new THREE.ConeGeometry(0.68*scale, 1.8*scale, 8),
+    std(new THREE.Color(0x5d9048).multiplyScalar(shade))
+  );
+  foliage2.position.y = 2.9*scale;
+  foliage2.castShadow = true;
+  tree.add(foliage2);
+
+  tree.position.set(x, 0, z);
+  tree.rotation.y = Math.random()*Math.PI;
+  return tree;
+}
+[
+  [-16,-3,1.0],[-14,-1,0.9],[-17,2,1.1],[-13,3,1.0],
+  [-15.5,0.5,1.2],[-18,-1,0.85],[-12,-2,0.95],[-19,1.5,1.0],
+  [-14,-4,0.9],[-11,1,1.1],[-16.5,4,0.95],[-13.5,5,1.0],
+  [-20,0,1.05],[-17,-4.5,1.0],[-19.5,3.5,0.9],[-12.5,0.5,0.8]
+].forEach(([x,z,s]) => forestGroup.add(makeTree(x,z,s)));
+
+// ========== Pipe helper ==========
+function makePipe(from, to, radius, color) {
+  const dir = new THREE.Vector3().subVectors(to, from);
+  const len = dir.length();
+  const pipe = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius, radius, len, 10),
+    metal(color, {roughness:0.45})
+  );
+  pipe.position.copy(from).add(to).multiplyScalar(0.5);
+  pipe.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir.clone().normalize());
+  pipe.castShadow = true;
+  return pipe;
+}
+
+// ========== VILLAGE — district heating & electricity consumers ==========
+const villageGroup = new THREE.Group();
+scene.add(villageGroup);
+
+function makeHouse(x, z, rotation, scale, roofColor) {
+  const house = new THREE.Group();
+  const base = new THREE.Mesh(
+    new THREE.BoxGeometry(1.6*scale, 1.3*scale, 1.4*scale),
+    std(0xd9d2b8, {roughness:0.85})
+  );
+  base.position.y = 0.65*scale;
+  base.castShadow = true; base.receiveShadow = true;
+  house.add(base);
+
+  const rf = new THREE.Mesh(
+    new THREE.ConeGeometry(1.2*scale, 0.9*scale, 4),
+    std(roofColor, {roughness:0.9})
+  );
+  rf.position.y = 1.75*scale;
+  rf.rotation.y = Math.PI/4;
+  rf.castShadow = true;
+  house.add(rf);
+
+  const winMat = new THREE.MeshStandardMaterial({
+    color:0xffd88a, emissive:0xffc060, emissiveIntensity:1.0
+  });
+  const win1 = new THREE.Mesh(new THREE.PlaneGeometry(0.35*scale, 0.35*scale), winMat);
+  win1.position.set(0, 0.75*scale, 0.71*scale);
+  house.add(win1);
+  const win2 = new THREE.Mesh(new THREE.PlaneGeometry(0.35*scale, 0.35*scale), winMat);
+  win2.position.set(0.81*scale, 0.75*scale, 0);
+  win2.rotation.y = Math.PI/2;
+  house.add(win2);
+
+  const chim = new THREE.Mesh(
+    new THREE.BoxGeometry(0.18*scale, 0.5*scale, 0.18*scale),
+    std(0x8a6a4a)
+  );
+  chim.position.set(0.3*scale, 2.0*scale, 0);
+  house.add(chim);
+
+  house.position.set(x, 0, z);
+  house.rotation.y = rotation;
+  return house;
+}
+[
+  [-9, 7.5, 0.2, 1.0, 0x8a4030],
+  [-6.5, 9, -0.3, 0.9, 0x6a4a3a],
+  [-11, 6.5, 0.4, 1.05, 0x7a3020],
+  [-7.5, 6, 0.1, 0.95, 0x8a5040],
+  [-10, 9.5, -0.2, 0.92, 0x5a3a2a]
+].forEach(([x,z,r,s,c]) => villageGroup.add(makeHouse(x,z,r,s,c)));
+
+// District heating trunk pipe (insulated orange) plant → village
+scene.add(makePipe(new THREE.Vector3(-3,0.4,1.8), new THREE.Vector3(-6,0.4,4.5), 0.18, 0xc8702e));
+scene.add(makePipe(new THREE.Vector3(-6,0.4,4.5), new THREE.Vector3(-9,0.4,7), 0.18, 0xc8702e));
+
+// Utility pole
+const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,5,8), std(0x3a2818));
+pole.position.set(-5, 2.5, 3);
+pole.castShadow = true;
+scene.add(pole);
+const poleArm = new THREE.Mesh(new THREE.BoxGeometry(1.6,0.12,0.12), std(0x3a2818));
+poleArm.position.set(-5, 4.85, 3);
+scene.add(poleArm);
+
+// ========== POWER PLANT (CHP) ==========
+const plantGroup = new THREE.Group();
+plantGroup.position.set(-3, 0, 0);
+scene.add(plantGroup);
+
+const building = new THREE.Mesh(new THREE.BoxGeometry(4,3,4), std(0x9aa3a8, {roughness:0.6}));
+building.position.y = 1.5;
+building.castShadow = true; building.receiveShadow = true;
+plantGroup.add(building);
+
+// Facade accent stripe + door, so the block reads as a building
+const stripe = new THREE.Mesh(new THREE.BoxGeometry(4.02, 0.5, 4.02), std(0x51707a, {roughness:0.55}));
+stripe.position.y = 2.6;
+plantGroup.add(stripe);
+const door = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 1.3), std(0x2a3438));
+door.position.set(0, 0.66, 2.01);
+plantGroup.add(door);
+const plantWin = new THREE.Mesh(
+  new THREE.PlaneGeometry(2.4, 0.5),
+  new THREE.MeshStandardMaterial({color:0xffd88a, emissive:0xffb850, emissiveIntensity:0.8})
+);
+plantWin.position.set(0, 1.8, 2.01);
+plantGroup.add(plantWin);
+
+const roof = new THREE.Mesh(new THREE.BoxGeometry(4.3,0.22,4.3), std(0x5a6468, {roughness:0.55}));
+roof.position.y = 3.11;
+roof.castShadow = true;
+plantGroup.add(roof);
+
+// Smokestack (red-white bands, instantly legible as a stack)
+const stack = new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.52,4,14), std(0xd8d8d4, {roughness:0.55}));
+stack.position.set(-1.2, 5, -1);
+stack.castShadow = true;
+plantGroup.add(stack);
+[4.2, 5.5, 6.6].forEach(y=>{
+  const band = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.435,0.435,0.32,14),
+    std(0xb84838, {roughness:0.6})
+  );
+  band.position.set(-1.2, y, -1);
+  plantGroup.add(band);
+});
+const stackCap = new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,0.2,14), std(0x3c4448));
+stackCap.position.set(-1.2, 7.1, -1);
+plantGroup.add(stackCap);
+
+// Biomass fuel pile beside the plant
+const pile = new THREE.Mesh(
+  new THREE.ConeGeometry(1.15, 1.0, 12),
+  std(0x6f5533, {roughness:1})
+);
+pile.position.set(-5.6, 0.5, -1.6);
+pile.castShadow = true;
+scene.add(pile);
+
+// ========== CAPTURE UNIT ==========
+const captureGroup = new THREE.Group();
+captureGroup.position.set(1.5, 0, 0);
+scene.add(captureGroup);
+
+const absorber = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.7,0.8,5,18),
+  metal(0x5f8296, {roughness:0.32})
+);
+absorber.position.y = 2.5;
+absorber.castShadow = true;
+captureGroup.add(absorber);
+
+const absCap = new THREE.Mesh(
+  new THREE.SphereGeometry(0.7,18,10,0,Math.PI*2,0,Math.PI/2),
+  metal(0x7095a8, {roughness:0.28})
+);
+absCap.position.y = 5;
+captureGroup.add(absCap);
+
+// Ring flanges on the absorber (industrial detail)
+[1.2, 2.5, 3.8].forEach(y=>{
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(0.755, 0.035, 8, 28),
+    metal(0x3d5766)
+  );
+  ring.rotation.x = Math.PI/2;
+  ring.position.y = y;
+  captureGroup.add(ring);
+});
+
+const stripper = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.5,0.5,2.5,14),
+  metal(0x8fa0ae, {roughness:0.38})
+);
+stripper.position.set(1.5, 1.25, 0.5);
+stripper.castShadow = true;
+captureGroup.add(stripper);
+
+// Off-gas outlet on absorber top
+const offgasOut = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.22,0.28,1.5,12),
+  metal(0x7d8f9c)
+);
+offgasOut.position.set(0, 6.4, 0);
+offgasOut.castShadow = true;
+captureGroup.add(offgasOut);
+const offgasCap = new THREE.Mesh(new THREE.CylinderGeometry(0.26,0.26,0.12,12), std(0x3a4550));
+offgasCap.position.set(0, 7.2, 0);
+captureGroup.add(offgasCap);
+
+// Amine loop pipes between absorber and stripper
+scene.add(makePipe(new THREE.Vector3(2.1,1.2,0),  new THREE.Vector3(2.8,2.3,0.5), 0.06, 0xa88040));
+scene.add(makePipe(new THREE.Vector3(3.2,0.6,0.5),new THREE.Vector3(2.1,4.2,0),   0.06, 0x887020));
+// CO2 outlet from stripper down to pipeline level
+scene.add(makePipe(new THREE.Vector3(3,2.5,0.5),  new THREE.Vector3(3,1.3,0.15), 0.1, 0xc2604f));
+// Plant → capture flue duct
+scene.add(makePipe(new THREE.Vector3(-1,2,0), new THREE.Vector3(1.5,2,0), 0.13, 0x9aa3a8));
+
+// ========== PIPELINE & WELL ==========
+scene.add(makePipe(new THREE.Vector3(2.5,1.2,0), new THREE.Vector3(11,1.2,0), 0.25, 0xc2604f));
+for (let x=4; x<=10; x+=2) {
+  const support = new THREE.Mesh(new THREE.BoxGeometry(0.2,1.2,0.2), std(0x4a5254));
+  support.position.set(x, 0.6, 0);
+  support.castShadow = true;
+  scene.add(support);
+}
+const well = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.25,0.25,5.5,12),
+  new THREE.MeshStandardMaterial({color:0xc2604f, metalness:0.5, roughness:0.5, transparent:true, opacity:0.85})
+);
+well.position.set(11, -1.25, 0);
+scene.add(well);
+
+const wellhead = new THREE.Mesh(new THREE.BoxGeometry(0.8,0.6,0.8), metal(0xd88878, {roughness:0.4}));
+wellhead.position.set(11, 1.5, 0);
+wellhead.castShadow = true;
+scene.add(wellhead);
+const wellValve = new THREE.Mesh(new THREE.TorusGeometry(0.28,0.06,8,20), metal(0xe8b0a0));
+wellValve.rotation.x = Math.PI/2;
+wellValve.position.set(11, 1.95, 0);
+scene.add(wellValve);
+
+const wellBranch = makePipe(new THREE.Vector3(11,-4,0), new THREE.Vector3(20,-4,0), 0.18, 0xc2604f);
+wellBranch.material.transparent = true;
+wellBranch.material.opacity = 0.85;
+scene.add(wellBranch);
+
+// ========== PATHS (shared by tubes & particles) ==========
+const P = (x,y,z)=>new THREE.Vector3(x,y,z);
+const forestToPlant = new THREE.CatmullRomCurve3([P(-15,1.5,0),P(-10,1,0),P(-6,0.8,0),P(-3,1.5,0)]);
+const captureToWell = new THREE.CatmullRomCurve3([P(3,2.6,0.5),P(3,1.6,0.3),P(3,1.2,0),P(6,1.2,0),P(11,1.2,0)]);
+const fluePath      = new THREE.CatmullRomCurve3([P(-3,3,0),P(-1.2,2,0),P(0,2,0),P(1.5,1.6,0),P(1.5,0.8,0)]);
+const offgasPath    = new THREE.CatmullRomCurve3([P(1.5,5.5,0),P(1.5,6.8,0),P(1.7,8.5,0.3),P(2.5,11,0.8),P(3.5,14,1.6)]);
+const wellPath      = new THREE.CatmullRomCurve3([P(11,1.2,0),P(11,-2,0),P(11,-4,0),P(15,-4,0),P(19,-4,0)]);
+const stackPath     = new THREE.CatmullRomCurve3([P(-4.2,7,-1),P(-4,10,-1),P(-3,13,0),P(-1,15,2)]);
+const heatPath      = new THREE.CatmullRomCurve3([P(-3,0.4,1.8),P(-5,0.4,3.5),P(-7,0.4,5.5),P(-9,0.4,7)]);
+const electricPath  = new THREE.CatmullRomCurve3([P(-3,4.5,0),P(-4,4.9,1.8),P(-5,4.85,3),P(-7,3.5,5),P(-9,2.2,7.5)]);
+
+// ========== FLOW TUBES (animated dashes — direction always legible) ==========
+function makeFlowTexture(hex) {
+  const cv = document.createElement('canvas');
+  cv.width = 64; cv.height = 8;
+  const ctx = cv.getContext('2d');
+  ctx.clearRect(0,0,64,8);
+  // chevron-like dash: bright head fading to tail
+  const g = ctx.createLinearGradient(0,0,40,0);
+  g.addColorStop(0, 'rgba(255,255,255,0)');
+  g.addColorStop(0.7, hex);
+  g.addColorStop(1, '#ffffff');
+  ctx.fillStyle = g;
+  ctx.fillRect(0,0,40,8);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.ClampToEdgeWrapping;
+  return tex;
+}
+const flowTubes = [];
+function makeFlowTube(curve, cssColor, radius, repeats, speed) {
+  const geo = new THREE.TubeGeometry(curve, 64, radius, 8, false);
+  const tex = makeFlowTexture(cssColor);
+  tex.repeat.set(repeats, 1);
+  const mat = new THREE.MeshBasicMaterial({
+    map: tex, transparent:true, opacity:0,
+    depthWrite:false, blending:THREE.AdditiveBlending,
+    side: THREE.DoubleSide
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.renderOrder = 2;
+  scene.add(mesh);
+  const t = {mesh, tex, speed: speed*SPEED, target:0};
+  flowTubes.push(t);
+  return t;
+}
+const tubeBio    = makeFlowTube(forestToPlant, '#8fd06f', 0.10, 5, 0.010);
+const tubeFlue   = makeFlowTube(fluePath,      '#ad8d76', 0.11, 4, 0.012);
+const tubeCO2    = makeFlowTube(captureToWell, '#ff6f5e', 0.12, 6, 0.012);
+const tubeWell   = makeFlowTube(wellPath,      '#ff6f5e', 0.12, 7, 0.010);
+const tubeHeat   = makeFlowTube(heatPath,      '#ff9a52', 0.09, 4, 0.010);
+const tubeElec   = makeFlowTube(electricPath,  '#ffe066', 0.06, 6, 0.020);
+const tubeOffgas = makeFlowTube(offgasPath,    '#ccdde6', 0.10, 4, 0.008);
+
+// ========== PARTICLES ==========
+// Soft round sprite texture (no more square points)
+const particleTex = (function(){
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 64;
+  const ctx = cv.getContext('2d');
+  const g = ctx.createRadialGradient(32,32,0, 32,32,30);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.35, 'rgba(255,255,255,0.7)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0,0,64,64);
+  return new THREE.CanvasTexture(cv);
+})();
+
+function makeParticleSystem(count, color, size) {
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(count*3), 3));
+  const material = new THREE.PointsMaterial({
+    color, size, map: particleTex,
+    transparent:true, opacity:0.9,
+    sizeAttenuation:true, depthWrite:false,
+    blending:THREE.AdditiveBlending
+  });
+  const pts = new THREE.Points(geometry, material);
+  pts.renderOrder = 3;
+  return pts;
+}
+
+// Flow 1: atmospheric CO2 descending into forest
+const flow1 = makeParticleSystem(60, C.co2, 0.30); scene.add(flow1);
+const flow1Data = [];
+for (let i=0;i<60;i++) {
+  flow1Data.push({
+    x:-20+Math.random()*10, y:8+Math.random()*6, z:-4+Math.random()*8,
+    targetX:-16+Math.random()*8, targetY:2+Math.random()*2, targetZ:-4+Math.random()*8,
+    speed:(0.005+Math.random()*0.008)*SPEED, t:Math.random()
+  });
+}
+// Flow 2..10 along curves
+function curveFlowData(n, base, jitter) {
+  const arr=[];
+  for(let i=0;i<n;i++) arr.push({t:Math.random(), speed:(base+Math.random()*jitter)*SPEED});
+  return arr;
+}
+const flow2 = makeParticleSystem(40, C.bio, 0.26);  scene.add(flow2);
+const flow2Data = curveFlowData(40, 0.004, 0.003);
+const flow3 = makeParticleSystem(30, C.co2, 0.26);  scene.add(flow3);
+const flow3Data = curveFlowData(30, 0.010, 0.008);
+const flow4 = makeParticleSystem(50, C.co2, 0.26);  scene.add(flow4);
+const flow4Data = curveFlowData(50, 0.005, 0.004);
+const flow5 = makeParticleSystem(70, C.co2Hot, 0.30); scene.add(flow5);
+const flow5Data = curveFlowData(70, 0.006, 0.003);
+const flow6 = makeParticleSystem(140, C.co2Hot, 0.32); scene.add(flow6);
+const flow6Data = [];
+for (let i=0;i<140;i++) {
+  flow6Data.push({
+    angle:Math.random()*Math.PI*2,
+    radius:0.3+Math.random()*3.6,
+    yOffset:(Math.random()-0.5)*1.5,
+    speed:(0.003+Math.random()*0.008)*SPEED,
+    phase:Math.random()*Math.PI*2
+  });
+}
+const flow7 = makeParticleSystem(50, C.heat, 0.26);   scene.add(flow7);
+const flow7Data = curveFlowData(50, 0.004, 0.003);
+const flow8 = makeParticleSystem(40, C.elec, 0.20);   scene.add(flow8);
+const flow8Data = curveFlowData(40, 0.009, 0.006);
+const flow9 = makeParticleSystem(50, C.flue, 0.28);   scene.add(flow9);
+const flow9Data = curveFlowData(50, 0.006, 0.004);
+const flow10 = makeParticleSystem(50, C.offgas, 0.30); scene.add(flow10);
+const flow10Data = curveFlowData(50, 0.005, 0.005);
+
+// ========== LABELS (crisp sprites, shown per step) ==========
+function makeTextSprite(text, opt={}) {
+  const accent = opt.accent || '#8fd06f';
+  const small  = opt.small || false;
+  const px = small ? 40 : 46;
+  const pad = small ? 26 : 34;
+  const cv = document.createElement('canvas');
+  const ctx = cv.getContext('2d');
+  ctx.font = `600 ${px}px "Hiragino Sans","Noto Sans JP",sans-serif`;
+  const w = Math.ceil(ctx.measureText(text).width) + pad*2;
+  const h = px + pad*1.3;
+  cv.width = w; cv.height = h;
+  const c2 = cv.getContext('2d');
+  // rounded pill
+  const r = h/2;
+  c2.beginPath();
+  c2.moveTo(r,0); c2.lineTo(w-r,0); c2.arc(w-r,r,r,-Math.PI/2,Math.PI/2);
+  c2.lineTo(r,h); c2.arc(r,r,r,Math.PI/2,-Math.PI/2);
+  c2.closePath();
+  c2.fillStyle = 'rgba(8,16,22,0.85)';
+  c2.fill();
+  c2.lineWidth = 3;
+  c2.strokeStyle = accent;
+  c2.globalAlpha = 0.75;
+  c2.stroke();
+  c2.globalAlpha = 1;
+  c2.fillStyle = opt.color || '#edf3ec';
+  c2.font = `600 ${px}px "Hiragino Sans","Noto Sans JP",sans-serif`;
+  c2.textAlign = 'center';
+  c2.textBaseline = 'middle';
+  c2.fillText(text, w/2, h/2 + 2);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.minFilter = THREE.LinearFilter;
+  const mat = new THREE.SpriteMaterial({map:tex, transparent:true, depthTest:false, opacity:0});
+  const sprite = new THREE.Sprite(mat);
+  const scale = (small ? 0.0062 : 0.0078);
+  sprite.scale.set(w*scale, h*scale, 1);
+  sprite.renderOrder = 10;
+  return sprite;
+}
+
+const labels = {
+  forest:  makeTextSprite('① 森林・エネルギー作物', {accent:'#8fd06f'}),
+  plant:   makeTextSprite('② バイオマス発電所（CHP）', {accent:'#ff9a52'}),
+  capture: makeTextSprite('③ CO₂回収設備', {accent:'#ccdde6'}),
+  storage: makeTextSprite('④ 貯留層に固定されたCO₂', {accent:'#ff6f5e'}),
+  village: makeTextSprite('住宅（熱＋電力の供給先）', {accent:'#ffe066', small:true}),
+  caprock: makeTextSprite('帽岩（遮蔽層）', {accent:'#b0a0c8', small:true}),
+  offgas:  makeTextSprite('オフガス（N₂・O₂）', {accent:'#ccdde6', small:true}),
+  absorber:makeTextSprite('吸収塔', {accent:'#ccdde6', small:true}),
+  stripper:makeTextSprite('再生塔', {accent:'#ccdde6', small:true}),
+  uncaptured: makeTextSprite('回収しない場合：大気へ再放出', {accent:'#ff6f5e', small:true}),
+  wellL:   makeTextSprite('圧入井（約1,000m以深）', {accent:'#ff6f5e', small:true})
+};
+labels.forest.position.set(-15, 7.2, 0);
+labels.plant.position.set(-3, 8.6, 0);
+labels.capture.position.set(1.5, 9.6, 0);
+labels.storage.position.set(17, -6.6, 7.4);
+labels.village.position.set(-8.5, 3.6, 8);
+labels.caprock.position.set(17, -2.5, 7.6);
+labels.offgas.position.set(4.3, 13.2, 1);
+labels.absorber.position.set(0.2, 0.4, 3.2);
+labels.stripper.position.set(3.4, -0.5, 3.2);
+labels.uncaptured.position.set(-2.2, 15.6, 1);
+labels.wellL.position.set(11, 3.2, 3);
+Object.values(labels).forEach(l => scene.add(l));
+
+// Which labels are visible in each step
+const labelVis = {
+  1: ['forest'],
+  2: ['plant','village','uncaptured'],
+  3: ['capture','absorber','stripper','offgas'],
+  4: ['storage','caprock','wellL']
+};
+
+// ========== STEP HIGHLIGHT RING ==========
+const ringMat = new THREE.MeshBasicMaterial({
+  color: C.bio, transparent:true, opacity:0.0,
+  side:THREE.DoubleSide, depthWrite:false
+});
+const ring = new THREE.Mesh(new THREE.RingGeometry(3.4, 3.7, 48), ringMat);
+ring.rotation.x = -Math.PI/2;
+ring.position.set(-15, 0.05, 0);
+ring.renderOrder = 1;
+scene.add(ring);
+const ringTargets = {
+  1: {pos:P(-15,0.05,0),  color:C.bio,  scale:1.35},
+  2: {pos:P(-3,0.05,0.2), color:C.heat, scale:1.15},
+  3: {pos:P(2.1,0.05,0.2),color:0x9fc0d0, scale:0.85},
+  4: {pos:P(17,-2.95,0),  color:C.co2,  scale:1.5}
+};
+
+// ========== STEP CONTENT ==========
+const stepContent = {
+  1: {
+    label:'STEP 1 / 4',
+    title:'① 大気CO₂の吸収',
+    desc:'樹木・エネルギー作物が光合成により大気中のCO₂を吸収し、バイオマスとして炭素を固定する。この段階で大気中のCO₂は減少する。',
+    balance:'大気CO₂：吸収（−）', negative:false,
+    chainNodes:['air','forest'], chainArrows:[1]
+  },
+  2: {
+    label:'STEP 2 / 4',
+    title:'② 熱電併給（CHP）',
+    desc:'バイオマスを燃焼し、熱電併給（CHP）により<b>電力</b>と<b>熱</b>を同時生成。地域熱供給網（fjernvarme）と送電網を通じて住宅へ供給する。回収を行わない通常の発電では、ここでCO₂が大気へ再放出される（カーボンニュートラル＝差し引きゼロ）。',
+    balance:'大気CO₂：±0（回収なしの場合）', negative:false,
+    chainNodes:['forest','chp'], chainArrows:[2]
+  },
+  3: {
+    label:'STEP 3 / 4',
+    title:'③ アミン吸収によるCO₂分離',
+    desc:'排ガスを<b>吸収塔</b>（左）に導き、アミン溶液がCO₂を選択的に吸収。塔頂からは窒素・酸素主体のオフガスが清浄な状態で放出される。CO₂を含むアミンは<b>再生塔</b>（右）へ送られ、加熱により高純度のCO₂が分離・回収される。',
+    balance:'CO₂を分離・回収中', negative:false,
+    chainNodes:['chp','capture'], chainArrows:[3]
+  },
+  4: {
+    label:'STEP 4 / 4',
+    title:'④ 地中貯留（負の排出）',
+    desc:'回収したCO₂をパイプラインで輸送し、地下約1,000m以深の帯水層に圧入。上部の<b>帽岩（遮蔽層）</b>が漏出を防ぎ、CO₂は長期間固定される。大気由来のCO₂が恒久的に除去されるため、全体の収支は<b>マイナス</b>となる。',
+    balance:'大気CO₂：正味マイナス', negative:true,
+    chainNodes:['capture','storage'], chainArrows:[4]
+  }
+};
+
+// ========== UI wiring ==========
+let currentStep = 1;
+
+function updatePanel(step) {
+  const c = stepContent[step];
+  document.getElementById('step-label').textContent = c.label;
+  document.getElementById('step-title').textContent = c.title;
+  document.getElementById('step-desc').innerHTML = c.desc;
+  const bal = document.getElementById('balance');
+  bal.textContent = c.balance;
+  bal.classList.toggle('negative', c.negative);
+  document.querySelectorAll('.step-btn').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.step) === step);
+  });
+  // carbon chain strip
+  document.querySelectorAll('.chain-node').forEach(n => {
+    n.classList.toggle('lit', c.chainNodes.includes(n.dataset.node));
+  });
+  document.querySelectorAll('.chain-arrow').forEach(a => {
+    a.classList.toggle('lit', c.chainArrows.includes(parseInt(a.dataset.arrow)));
+  });
+  // legend emphasis
+  const active = {
+    1:['co2','bio'], 2:['bio','co2','heat','elec'],
+    3:['flue','offgas','co2'], 4:['co2']
+  }[step];
+  document.querySelectorAll('.legend-row').forEach(r => {
+    r.classList.toggle('dim', !active.includes(r.dataset.key));
+  });
+}
+
+function setStep(step, moveCam=true) {
+  currentStep = step;
+  updatePanel(step);
+  if (moveCam) moveCameraForStep(step);
+}
+
+document.querySelectorAll('.step-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    stopAutoplay();
+    setStep(parseInt(btn.dataset.step));
+  });
+});
+
+// Keyboard: ← →
+window.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight') { stopAutoplay(); setStep(currentStep % 4 + 1); }
+  if (e.key === 'ArrowLeft')  { stopAutoplay(); setStep((currentStep + 2) % 4 + 1); }
+});
+
+// Legend collapse
+const legend = document.getElementById('legend');
+const legendHead = document.getElementById('legend-head');
+legendHead.addEventListener('click', () => legend.classList.toggle('closed'));
+legendHead.addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); legend.classList.toggle('closed'); }
+});
+if (window.innerWidth < 560) legend.classList.add('closed');
+
+// Reset view
+document.getElementById('resetBtn').addEventListener('click', () => moveCameraForStep(currentStep));
+
+// Autoplay
+const playBtn = document.getElementById('playBtn');
+const autobar = document.getElementById('autobar');
+const autofill = document.getElementById('autofill');
+let autoplay = false;
+let autoT = 0;
+const AUTO_DURATION = 9;  // seconds per step
+playBtn.addEventListener('click', () => autoplay ? stopAutoplay() : startAutoplay());
+function startAutoplay(){
+  autoplay = true; autoT = 0;
+  playBtn.textContent = '❚❚';
+  playBtn.classList.add('on');
+  autobar.classList.add('on');
+}
+function stopAutoplay(){
+  autoplay = false;
+  playBtn.textContent = '▶';
+  playBtn.classList.remove('on');
+  autobar.classList.remove('on');
+  autofill.style.width = '0%';
+}
+
+// Fade the hint after a while
+setTimeout(() => { const h = document.getElementById('hint'); if (h) h.style.opacity = '0'; }, 7000);
+
+// ========== Camera ==========
+const camTargets = {
+  1: {pos:P(-20,10,18),  look:P(-15,3,0)},
+  2: {pos:P(-11,8,22),   look:P(-5,2.5,3)},
+  3: {pos:P(4,7,17),     look:P(2,4,0)},
+  4: {pos:P(24,2,17),    look:P(15.5,-3.8,0)}
+};
+let camAnim = null;
+function moveCameraForStep(step) {
+  const t = camTargets[step];
+  camAnim = {
+    startPos: camera.position.clone(), endPos: t.pos.clone(),
+    startLook: controls.target.clone(), endLook: t.look.clone(),
+    t: 0
+  };
+}
+
+// ========== Animation loops ==========
+function updateFlow1() {
+  const pos = flow1.geometry.attributes.position.array;
+  for (let i=0;i<flow1Data.length;i++) {
+    const d = flow1Data[i];
+    d.t += d.speed;
+    if (d.t >= 1) {
+      d.t = 0;
+      d.x=-22+Math.random()*14; d.y=8+Math.random()*6; d.z=-5+Math.random()*10;
+      d.targetX=-18+Math.random()*10; d.targetY=2+Math.random()*2; d.targetZ=-5+Math.random()*10;
+    }
+    pos[i*3]   = d.x + (d.targetX-d.x)*d.t;
+    pos[i*3+1] = d.y + (d.targetY-d.y)*d.t;
+    pos[i*3+2] = d.z + (d.targetZ-d.z)*d.t;
+  }
+  flow1.geometry.attributes.position.needsUpdate = true;
+}
+function updateCurveFlow(points, data, curve, jitter=0.15) {
+  const pos = points.geometry.attributes.position.array;
+  for (let i=0;i<data.length;i++) {
+    const d = data[i];
+    d.t += d.speed;
+    if (d.t >= 1) d.t = 0;
+    const p = curve.getPoint(d.t);
+    pos[i*3]   = p.x + (Math.random()-0.5)*jitter;
+    pos[i*3+1] = p.y + (Math.random()-0.5)*jitter;
+    pos[i*3+2] = p.z + (Math.random()-0.5)*jitter;
+  }
+  points.geometry.attributes.position.needsUpdate = true;
+}
+function updatePlume() {
+  const pos = flow6.geometry.attributes.position.array;
+  for (let i=0;i<flow6Data.length;i++) {
+    const d = flow6Data[i];
+    d.phase += d.speed;
+    const r = d.radius + Math.sin(d.phase)*0.25;
+    pos[i*3]   = 17 + Math.cos(d.angle)*r;
+    pos[i*3+1] = -4.0 + d.yOffset + Math.sin(d.phase*1.3)*0.15;
+    pos[i*3+2] = Math.sin(d.angle)*r*1.1;
+  }
+  flow6.geometry.attributes.position.needsUpdate = true;
+}
+
+// Per-step visibility targets: particles + tubes + labels + ring
+function setStepVisuals() {
+  const pTargets = {
+    1: {f1:1.0, f2:0.2, f3:0.0, f4:0.0, f5:0.0, f6:0.0,  f7:0.15, f8:0.15, f9:0.0,  f10:0.0},
+    2: {f1:0.3, f2:1.0, f3:0.7, f4:0.0, f5:0.0, f6:0.0,  f7:1.0,  f8:1.0,  f9:0.0,  f10:0.0},
+    3: {f1:0.2, f2:0.3, f3:0.0, f4:1.0, f5:0.3, f6:0.1,  f7:0.3,  f8:0.3,  f9:1.0,  f10:1.0},
+    4: {f1:0.2, f2:0.2, f3:0.0, f4:0.6, f5:0.9, f6:0.9,  f7:0.2,  f8:0.2,  f9:0.25, f10:0.25}
+  }[currentStep];
+  const lerp = (m, t) => { m.opacity += (t - m.opacity) * 0.05; };
+  lerp(flow1.material, pTargets.f1); lerp(flow2.material, pTargets.f2);
+  lerp(flow3.material, pTargets.f3); lerp(flow4.material, pTargets.f4);
+  lerp(flow5.material, pTargets.f5); lerp(flow6.material, pTargets.f6);
+  lerp(flow7.material, pTargets.f7); lerp(flow8.material, pTargets.f8);
+  lerp(flow9.material, pTargets.f9); lerp(flow10.material, pTargets.f10);
+
+  // Tubes follow the same logic (slightly lower ceiling so they stay subtle)
+  const tTargets = {
+    1: {bio:0.10, flue:0,    co2:0,    well:0,    heat:0.08, elec:0.08, off:0},
+    2: {bio:0.55, flue:0,    co2:0,    well:0,    heat:0.55, elec:0.55, off:0},
+    3: {bio:0.15, flue:0.55, co2:0.60, well:0.15, heat:0.15, elec:0.15, off:0.50},
+    4: {bio:0.10, flue:0.12, co2:0.40, well:0.62, heat:0.10, elec:0.10, off:0.12}
+  }[currentStep];
+  lerp(tubeBio.mesh.material,    tTargets.bio);
+  lerp(tubeFlue.mesh.material,   tTargets.flue);
+  lerp(tubeCO2.mesh.material,    tTargets.co2);
+  lerp(tubeWell.mesh.material,   tTargets.well);
+  lerp(tubeHeat.mesh.material,   tTargets.heat);
+  lerp(tubeElec.mesh.material,   tTargets.elec);
+  lerp(tubeOffgas.mesh.material, tTargets.off);
+
+  // Labels
+  const visible = labelVis[currentStep];
+  for (const key in labels) {
+    const want = visible.includes(key) ? 1 : 0;
+    const m = labels[key].material;
+    m.opacity += (want - m.opacity) * 0.07;
+  }
+
+  // Highlight ring
+  const rt = ringTargets[currentStep];
+  ring.position.lerp(rt.pos, 0.08);
+  ringMat.color.lerp(new THREE.Color(rt.color), 0.08);
+}
+
+let lastTime = performance.now();
+function animate() {
+  requestAnimationFrame(animate);
+  const now = performance.now();
+  const dt = Math.min((now - lastTime)/1000, 0.1);
+  lastTime = now;
+
+  updateFlow1();
+  updateCurveFlow(flow2, flow2Data, forestToPlant);
+  updateCurveFlow(flow3, flow3Data, stackPath, 0.3);
+  updateCurveFlow(flow4, flow4Data, captureToWell);
+  updateCurveFlow(flow5, flow5Data, wellPath);
+  updateCurveFlow(flow7, flow7Data, heatPath);
+  updateCurveFlow(flow8, flow8Data, electricPath);
+  updateCurveFlow(flow9, flow9Data, fluePath);
+  updateCurveFlow(flow10, flow10Data, offgasPath);
+  updatePlume();
+
+  // Tube dash animation
+  for (const t of flowTubes) t.tex.offset.x -= t.speed;
+
+  // CO2 plume breathing + reservoir light flicker
+  const tPulse = now * 0.0008;
+  co2Mass.scale.x = 1.20 + Math.sin(tPulse)*0.04;
+  co2Mass.scale.z = 1.30 + Math.cos(tPulse)*0.04;
+  co2Mass.material.emissiveIntensity = 0.80 + Math.sin(tPulse*1.5)*0.12;
+  resLight.intensity = 0.60 + Math.sin(tPulse*1.5)*0.12;
+
+  // Highlight ring pulse
+  const ringPulse = REDUCED ? 0 : Math.sin(now*0.003);
+  ringMat.opacity = 0.30 + ringPulse*0.14;
+  const rs = ringTargets[currentStep].scale * (1 + (REDUCED ? 0 : Math.sin(now*0.0015)*0.03));
+  ring.scale.set(rs, rs, 1);
+
+  setStepVisuals();
+
+  // Autoplay
+  if (autoplay) {
+    autoT += dt;
+    autofill.style.width = Math.min(100, autoT/AUTO_DURATION*100) + '%';
+    if (autoT >= AUTO_DURATION) {
+      autoT = 0;
+      setStep(currentStep % 4 + 1);
+    }
+  }
+
+  // Camera transition
+  if (camAnim) {
+    camAnim.t = Math.min(1, camAnim.t + 0.018);
+    const e = camAnim.t < 0.5
+      ? 2*camAnim.t*camAnim.t
+      : 1 - Math.pow(-2*camAnim.t+2, 2)/2;
+    camera.position.lerpVectors(camAnim.startPos, camAnim.endPos, e);
+    controls.target.lerpVectors(camAnim.startLook, camAnim.endLook, e);
+    if (camAnim.t >= 1) camAnim = null;
+  }
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+// ========== Resize ==========
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// Initialize
+updatePanel(1);
+
+</script>
+</body>
+</html>
